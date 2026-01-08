@@ -1,7 +1,10 @@
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
+using FunticoGamesSDK.AuthDataProviders;
 using FunticoGamesSDK.RoomsProviders;
+using FunticoGamesSDK.SessionsManagement;
+using FunticoGamesSDK.UserDataProviders;
 using FunticoGamesSDK.ViewModels;
 
 namespace FunticoGamesSDK
@@ -10,9 +13,12 @@ namespace FunticoGamesSDK
 	{
 		private IRoomsProvider _roomsProvider;
 
-		private void SetupRoomsProvider()
+		private void SetupRoomsProvider(string privateGameKey, IUserDataService userDataService,
+			IAuthDataProvider authDataProvider, IClientSessionManager clientSessionManager,
+			IServerSessionManager serverSessionManager, IErrorHandler errorHandler)
 		{
-			_roomsProvider = new RoomsProvider(_userDataService, _authDataProvider, _errorHandler);
+			_roomsProvider = new RoomsProvider(privateGameKey, userDataService, authDataProvider, clientSessionManager,
+				serverSessionManager, errorHandler);
 		}
 
 		public UniTask<List<TierViewModel>> GetTiers() => _roomsProvider.GetTiers();
@@ -23,8 +29,7 @@ namespace FunticoGamesSDK
 
 		public UniTask<List<RoomViewModel>> GetRooms(RoomTierEnum? tier) => _roomsProvider.GetRooms(tier);
 
-		public UniTask<RoomData> JoinRoom(Ticket ticket, string roomGuid, bool useVoucher = false, bool prePaid = false) =>
-			_roomsProvider.JoinRoom(ticket, roomGuid, useVoucher, prePaid);
+		public UniTask<RoomData> JoinRoom(string roomGuid) => _roomsProvider.JoinRoom(roomGuid);
 
 		public UniTask<PrizePoolDistibutionViewModel> GetPrizePoolDistribution(string roomGuid) =>
 			_roomsProvider.GetPrizePoolDistribution(roomGuid);
@@ -32,8 +37,12 @@ namespace FunticoGamesSDK
 		public UniTask<RoomLeaderboardViewModel> GetLeaderboard(string eventId, string sessionId, string matchId) =>
 			_roomsProvider.GetLeaderboard(eventId, sessionId, matchId);
 
-		public UniTask<RoomData> TryToReconnect(Ticket ticket, string guid) => _roomsProvider.TryToReconnect(ticket, guid);
-
 		public UniTask<RoomTierEnum?> GetTierByEventId(string eventId) => _roomsProvider.GetTierByEventId(eventId);
+
+		public UniTask<bool> FinishRoomSession_Client(string eventId, string sessionId, int score) =>
+			_roomsProvider.FinishRoomSession_Client(eventId, sessionId, score);
+
+		public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId, string userIp) =>
+			_roomsProvider.FinishRoomSession_Server(eventId, sessionId, score, userId, userIp);
 	}
 }

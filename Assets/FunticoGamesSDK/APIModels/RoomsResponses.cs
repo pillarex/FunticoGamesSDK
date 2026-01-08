@@ -320,7 +320,7 @@ namespace FunticoGamesSDK.APIModels
         public int Kyc { get; set; }
     }
 
-    public class RoomsResponse
+    public class RoomsResponses
     {
         [JsonProperty("data")]
         public List<RoomConfig> Data { get; set; }

@@ -7,20 +7,24 @@ using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Networking;
 using Logger = FunticoGamesSDK.Logging.Logger;
+#if SERVER || UNITY_SERVER
+using FunticoGamesSDK.Encryption;
+#endif
 
 namespace FunticoGamesSDK.NetworkUtils
 {
     public static class HTTPClient
     {
         private static string _sessionId;
-        private static string _userToken;
         private static string _publicGameKey;
+        private static string _privateGameKey;
         private static IErrorHandler _errorHandler;
         private static IAuthDataProvider _authDataProvider;
 
-        public static void Setup(string publicGameKey, IAuthDataProvider authDataProvider, IErrorHandler errorHandler)
+        public static void Setup(string publicGameKey, string privateGameKey, IAuthDataProvider authDataProvider, IErrorHandler errorHandler)
         {
             _publicGameKey = publicGameKey;
+            _privateGameKey = privateGameKey;
             _authDataProvider = authDataProvider;
             _errorHandler = errorHandler;
             _sessionId = Guid.NewGuid().ToString();
@@ -225,20 +229,25 @@ namespace FunticoGamesSDK.NetworkUtils
             request.downloadHandler = new DownloadHandlerBuffer();
             request.certificateHandler = new CertificateWhore();
 
-            ConfigureRequestHeaders(path, request, tokenToUse);
+            ConfigureRequestHeaders(request, tokenToUse);
 
 
             return request;
         }
 
-        private static void ConfigureRequestHeaders(string path, UnityWebRequest request, string tokenToUse = null)
+        private static void ConfigureRequestHeaders(UnityWebRequest request, string tokenToUse = null)
         {
             request.SetRequestHeader("Content-Type", "application/json");
-            request.SetRequestHeader("X-Client-Session-Id", _sessionId);
             request.SetRequestHeader("X-User-Key", _publicGameKey);
+#if SERVER || UNITY_SERVER
+            request.SetRequestHeader("X-Server-Key", HashUtils.HashString(_privateGameKey, _publicGameKey));
+            request.SetRequestHeader("X-Server-Session-Id", _sessionId);
+#else
+            request.SetRequestHeader("X-Client-Session-Id", _sessionId);
+#endif
 
             tokenToUse ??= _authDataProvider.GetUserToken();
-            request.SetRequestHeader("Authorization", $"Bearer {tokenToUse}");
+            if (tokenToUse != null) request.SetRequestHeader("Authorization", $"Bearer {tokenToUse}");
         }
 
         public static void DefaultErrorHandler(UnityWebRequest www, string defaultErrorText = null)

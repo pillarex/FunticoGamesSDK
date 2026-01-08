@@ -13,7 +13,7 @@ using FunticoGamesSDK.TextureResizer;
 using FunticoGamesSDK.UserDataProviders;
 using FunticoGamesSDK.ViewModels;
 using UnityEngine;
-using UnityEngine.Assertions;
+using Logger = FunticoGamesSDK.Logging.Logger;
 
 namespace FunticoGamesSDK.RoomsProviders
 {
@@ -22,13 +22,13 @@ namespace FunticoGamesSDK.RoomsProviders
         protected RoomConfig[] LastRoomsResponse;
         protected readonly IUserDataService UserDataService;
         protected readonly IAuthDataProvider AuthDataProvider;
-        protected readonly IErrorHandler ErrorHandler;
+        protected readonly string PrivateKey;
 
-        public RoomsProviderInternal(IUserDataService userDataService, IAuthDataProvider authDataProvider, IErrorHandler errorHandler)
+        public RoomsProviderInternal(string privateKey, IUserDataService userDataService, IAuthDataProvider authDataProvider)
         {
+            PrivateKey = privateKey;
             UserDataService = userDataService;
             AuthDataProvider = authDataProvider;
-            ErrorHandler = errorHandler;
         }
 
         #region Public
@@ -129,7 +129,7 @@ namespace FunticoGamesSDK.RoomsProviders
             (bool success, string response) =
                 await HTTPClient.Get<string>(url);
             if (!success)
-                Debug.LogError("Failed to get room settings");
+                Logger.LogError("Failed to get room settings");
             return response;
         }
 
@@ -138,10 +138,10 @@ namespace FunticoGamesSDK.RoomsProviders
             // TODO: Tier implementation, if !tier.HasValue, fetch all
 
             var link = $"{APIConstants.Get_Rooms}?limit=30&roomType={roomType}";
-            (bool success, RoomsResponse response) = await HTTPClient.Get<RoomsResponse>(link);
+            (bool success, RoomsResponses response) = await HTTPClient.Get<RoomsResponses>(link);
 
             if (!success)
-                Debug.LogError("Failed to get events");
+                Logger.LogError("Failed to get events");
 
             return response.Data.ToArray();
         }
@@ -155,19 +155,19 @@ namespace FunticoGamesSDK.RoomsProviders
                 await HTTPClient.Get<RoomLeadersResponse>(link);
 
             if (!success)
-                Debug.LogError("Failed to get room leaders");
+                Logger.LogError("Failed to get room leaders");
 
             return response;
         }
 
-        private async UniTask<PrePaidEventsResponseData[]> GetPrePaidRooms()
+        public async UniTask<PrePaidEventsResponseData[]> GetPrePaidRooms()
         {
             var link = $"{APIConstants.Get_Pre_Paid}";
             (bool success, GetPrePaidEventsResponse response) =
                 await HTTPClient.Get<GetPrePaidEventsResponse>(link);
 
             if (!success)
-                Debug.LogError("Failed to get events");
+                Logger.LogError("Failed to get events");
 
             return response.data;
         }
@@ -177,7 +177,7 @@ namespace FunticoGamesSDK.RoomsProviders
             var link = $"{APIConstants.Get_Room}?roomId={roomId}";
             (bool success, RoomConfig response) = await HTTPClient.Get<RoomConfig>(link);
             if (!success)
-                Debug.LogError("Failed to get events");
+                Logger.LogError("Failed to get events");
             return response;
         }
 
@@ -187,11 +187,11 @@ namespace FunticoGamesSDK.RoomsProviders
 
         protected abstract int GetRoomType();
 
-        private async UniTask<bool> IsRoomPrePaid(string id)
+        protected async UniTask<bool> IsRoomPrePaid(string id)
         {
             var prePaidEvents = await GetPrePaidRooms();
-            var isPrePaid = prePaidEvents?.Any(x => x.id == id) ?? false;
-            Debug.Log($"Room {id} {(isPrePaid ? "is pre-paid" : "is not pre-paid")}");
+            var isPrePaid = prePaidEvents?.Any(x => x.id.Equals(id)) ?? false;
+            Logger.Log($"Room {id} {(isPrePaid ? "is pre-paid" : "is not pre-paid")}");
             return isPrePaid;
         }
 
@@ -514,7 +514,6 @@ namespace FunticoGamesSDK.RoomsProviders
             foreach (var leader in leadersWithNamesResponse.leaders)
             {
                 var leaderInfo = usersInfoResponse.data.FirstOrDefault(x => x.id == leader.id);
-                Assert.IsNotNull(leaderInfo);
                 leader.name = leaderInfo.name;
                 leader.avatar = leaderInfo.avatar.url;
                 leader.border = leaderInfo.border.url;
@@ -548,7 +547,7 @@ namespace FunticoGamesSDK.RoomsProviders
                 await HTTPClient.Get<UsersInfoResponse>(sb.ToString(), tokenToUse: funticoToken);
 
             if (!success)
-                Debug.LogError("Failed to get users info");
+                Logger.LogError("Failed to get users info");
 
             return response;
         }

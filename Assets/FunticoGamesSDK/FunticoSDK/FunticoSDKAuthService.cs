@@ -13,17 +13,10 @@ namespace FunticoGamesSDK
 			_authDataProvider = new AuthDataProvider();
 		}
 
-		public UniTask<LoginResponse> Authentication(string platformToken)
-		{
-			throw new System.NotImplementedException();
-		}
-		public string GetUserToken()
-		{
-			throw new System.NotImplementedException();
-		}
-		public string GetPlatformToken()
-		{
-			throw new System.NotImplementedException();
-		}
+		public UniTask<LoginResponse> Authentication(string platformToken) => _authDataProvider.Authentication(platformToken);
+
+		public string GetUserToken() => _authDataProvider.GetUserToken();
+
+		public string GetPlatformToken() => _authDataProvider.GetPlatformToken();
 	}
 }

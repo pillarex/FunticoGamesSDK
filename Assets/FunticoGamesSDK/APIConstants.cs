@@ -75,6 +75,14 @@ namespace FunticoGamesSDK
 
         #endregion
 
+        #region Session
+
+        public static readonly string UNFINISHED_SESSION = API + "/Session/any-unfinished-sessions";
+        public static readonly string CREATE_SESSION = API + "/Session/create-session";
+        public static readonly string UPDATE_SESSION = API + "/Session/update-session";
+    
+        #endregion
+
         public static string WithQuery(string url, params string[] additional) =>
             $"{url}?{string.Join("&", additional)}";
         public static string GetUrlAPIWithId(string urlAPI, string id) => $"{urlAPI}/{id}";

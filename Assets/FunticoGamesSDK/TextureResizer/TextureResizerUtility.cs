@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using Logger = FunticoGamesSDK.Logging.Logger;
 
 namespace FunticoGamesSDK.TextureResizer
 {
@@ -12,7 +13,7 @@ namespace FunticoGamesSDK.TextureResizer
         {
             if (sourceTexture == null)
             {
-                Debug.LogError("Source texture is null");
+                Logger.LogError("Source texture is null");
                 return null;
             }
 
