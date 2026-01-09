@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using FunticoGamesSDK.Logging;
 using FunticoGamesSDK.SessionsManagement;
 
 namespace FunticoGamesSDK
@@ -21,7 +22,7 @@ namespace FunticoGamesSDK
 
 		public UniTask<bool> UpdateSession_Server(int userId, string json) => _serverSessionManager.UpdateSession_Server(userId, json);
 
-		public void CloseCurrentSession_Server(int userId) => _serverSessionManager.CloseCurrentSession_Server(userId);
+		public void CloseCurrentSession_Server(int userId) => Logger.LogWarning("You are not supposed to call CloseCurrentSession manually");
 
 		public List<string> GetCurrentSessionEvents_Server(int userId) => _serverSessionManager.GetCurrentSessionEvents_Server(userId);
 

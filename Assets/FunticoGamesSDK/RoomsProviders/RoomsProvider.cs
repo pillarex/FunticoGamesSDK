@@ -150,6 +150,7 @@ namespace FunticoGamesSDK.RoomsProviders
 			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match, $"eventId={eventId}",
 				$"gameSessionIrOrMatchId={sessionId}");
 			var success = await HTTPClient.Post_Short(url, gameData);
+			_serverSessionManager.CloseCurrentSession_Server(userId);
 			return success;
 		}
 
