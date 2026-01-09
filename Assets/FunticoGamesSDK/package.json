@@ -5,9 +5,7 @@
   "description": "SDK for integration with Funtico Games platform",
   "unity": "2021.3",
   "dependencies": {
-    "com.unity.nuget.newtonsoft-json": "3.2.1",
-    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
-    "com.netpyoung.webp": "https://github.com/netpyoung/unity.webp.git?path=unity_project/Assets/unity.webp#0.3.21"
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
   },
   "keywords": [
     "sdk",
@@ -15,7 +13,13 @@
     "games"
   ],
   "author": {
-    "name": "Funtico Games"
-  }
+    "name": "Funtico Games",
+    "url": "https://funtico.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pillarex/FunticoGamesSDK.git"
+  },
+  "documentationUrl": "https://github.com/pillarex/FunticoGamesSDK#readme"
 }
 
