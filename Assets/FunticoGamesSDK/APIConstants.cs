@@ -4,8 +4,8 @@ namespace FunticoGamesSDK
 {
     public static class APIConstants
     {
-        public const string API_PROD = "https://solitaireapi.azurewebsites.net";
-        public const string API_STAGING = "https://solitaireapi-staging.azurewebsites.net";
+        public const string API_PROD = "https://funtico-sdk.azurewebsites.net";
+        public const string API_STAGING = "https://funtico-sdk-staging.azurewebsites.net";
         public const string FUNTICO_BASE_PROD = "https://funtico.com";
         public const string FUNTICO_BASE_STAGING = "https://staging.funtico.com";
         public const string FUNTICO_API_BASE_PROD = "https://api.funtico.com";
