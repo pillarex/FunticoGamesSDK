@@ -64,7 +64,7 @@ namespace FunticoGamesSDK.UserDataProviders
 			switch (type)
 			{
 				case EntryFeeType.Tico:
-					return data.Diamonds >= amount;
+					return data.Tico >= amount;
 				case EntryFeeType.SemifinalsTickets:
 					return data.SemiFinalTickets >= amount;
 				case EntryFeeType.FinalTickets:
@@ -141,12 +141,14 @@ namespace FunticoGamesSDK.UserDataProviders
 		private async UniTask UpdateUserBalance()
 		{
 			var (_, balance) = await HTTPClient.Get<BalanceResponse>(APIConstants.USER_BALANCE);
+			balance.Tico /= 10000d;
 			Balance = balance;
 		}
 
 		private async UniTask UpdateUserData()
 		{
 			var (_, response) = await HTTPClient.Get<UserData>(APIConstants.USER_ALL_DATA);
+			response.Tico /= 10000d;
 			Data = response;
 		}
 
