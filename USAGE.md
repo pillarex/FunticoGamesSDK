@@ -978,7 +978,7 @@ if (created)
 
 ### `UpdateSession_Client`
 
-Updates an existing session with new data.
+Updates an existing session with new data. You may want to use it if you want to have a reconnection feature.
 
 **Signature:**
 ```csharp
@@ -1187,7 +1187,7 @@ bool created = await FunticoSDK.Instance.CreateSession_Server(
 
 ### `UpdateSession_Server`
 
-Updates a server-side session for a user.
+Updates a server-side session for a user. You may want to use it if you want to have a reconnection feature.
 
 **Signature:**
 ```csharp
