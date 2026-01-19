@@ -10,12 +10,15 @@ namespace FunticoGamesSDK.AssetsProvider
     {
         private static AssetsLoader _instance;
         public static AssetsLoader Instance => _instance ??= new AssetsLoader();
-        public readonly Sprite TicoSprite;
+
+        public Sprite TicoSprite { get; private set; }
 
         private readonly ResourcesAssetProvider _resourcesAssetProvider = new ResourcesAssetProvider();
         private readonly UrlAssetProvider _urlAssetProvider = new UrlAssetProvider();
 
-        private AssetsLoader()
+        private AssetsLoader() { }
+
+        public void Warmup()
         {
             TicoSprite = LoadSpriteFromResources("Tico", LogType.Error);
         }

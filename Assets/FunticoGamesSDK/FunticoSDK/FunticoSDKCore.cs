@@ -1,4 +1,5 @@
 ﻿using Cysharp.Threading.Tasks;
+using FunticoGamesSDK.AssetsProvider;
 using FunticoGamesSDK.NetworkUtils;
 
 namespace FunticoGamesSDK
@@ -28,6 +29,7 @@ namespace FunticoGamesSDK
 			_publicGameKey = publicGameKey;
 			_privateGameKey = privateGameKey;
 			APIConstants.SetupEnvironment(env);
+			AssetsLoader.Instance.Warmup();
 			SetupAuthDataService();
 			SetupUserDataService();
 			SetupServerSessionManager();
