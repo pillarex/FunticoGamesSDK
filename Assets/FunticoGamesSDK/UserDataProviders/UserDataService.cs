@@ -14,7 +14,7 @@ namespace FunticoGamesSDK.UserDataProviders
 
 		private UserData Data { get; set; }
 		private BalanceResponse Balance { get; set; }
-		private List<VoucherData> Vouchers { get; set; }
+		private List<VoucherData> Vouchers { get; set; } = new List<VoucherData>();
 		private List<VoucherStaticData> _vouchersStaticData;
 
 		#endregion
