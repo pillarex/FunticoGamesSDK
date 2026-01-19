@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using FunticoGamesSDK.APIModels.Converters;
 using Newtonsoft.Json;
-using Unity.Plastic.Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Converters;
 
 namespace FunticoGamesSDK.APIModels
 {
@@ -175,8 +175,8 @@ namespace FunticoGamesSDK.APIModels
 
         [JsonProperty("updated_at")]
         public long? UpdatedAt { get; set; }
-        [JsonProperty("settings")]
-        public string Settings { get; set; }
+        // [JsonProperty("settings")]
+        // public string Settings { get; set; } todo;
     }
     
     public class Event2
