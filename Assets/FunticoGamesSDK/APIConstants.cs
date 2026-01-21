@@ -80,6 +80,7 @@ namespace FunticoGamesSDK
         public static readonly string UNFINISHED_SESSION = API + "/Session/any-unfinished-sessions";
         public static readonly string CREATE_SESSION = API + "/Session/create-session";
         public static readonly string UPDATE_SESSION = API + "/Session/update-session";
+        public static readonly string RECONNECT_TO_SESSION = API + "/Session/reconnect-to-session";
     
         #endregion
 

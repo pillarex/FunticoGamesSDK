@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FunticoGamesSDK;
 using FunticoGamesSDK.ViewModels;
 using FunticoGamesSDK.RoomsProviders;
@@ -40,14 +41,21 @@ public class SetupSDK : MonoBehaviour
     // ===== 2. CHECK FOR UNFINISHED SESSIONS =====
     private async UniTask CheckReconnection()
     {
-        bool hasUnfinished = await FunticoSDK.Instance.UserHasUnfinishedSession_Client();
-        
+        var sessionsResponse = await FunticoSDK.Instance.UserHasUnfinishedSession_Client();
+
+        var hasUnfinished = sessionsResponse != null && sessionsResponse.SavedSessions.Count > 0;
         if (hasUnfinished)
         {
             bool shouldResume = await ShowResumeDialog();
             if (shouldResume)
             {
-                string sessionData = await FunticoSDK.Instance.ReconnectToUnfishedSession_Client();
+                var session = sessionsResponse.SavedSessions.First();
+                string sessionData = await FunticoSDK.Instance.ReconnectToUnfinishedSession_Client(session.Id);
+                currentRoomData = new RoomData()
+                {
+                    EventId = session.SessionId,
+                    SessionOrMatchId = session.SaveSessionId
+                };
                 RestoreGameState(sessionData);
                 return;
             }
@@ -123,8 +131,8 @@ public class SetupSDK : MonoBehaviour
             version = Application.version
         };
         
-        bool created = await FunticoSDK.Instance.CreateSession_Client(
-            JsonConvert.SerializeObject(sessionData)
+        var currentSession = await FunticoSDK.Instance.CreateSession_Client(
+            JsonConvert.SerializeObject(sessionData), 0, currentRoomData.EventId, currentRoomData.SessionOrMatchId
         );
         
         // if (created)
@@ -237,7 +245,12 @@ public class SetupSDK : MonoBehaviour
     
     // Helper methods (implement based on your UI)
     private async UniTask<bool> ShowResumeDialog() { /* Show UI */ return true; }
-    private void RestoreGameState(string data) { /* Restore game */ }
+
+    private void RestoreGameState(string data)
+    {
+        /* Restore game */
+        StartGameplay().Forget(); 
+    }
     private void ShowMainMenu() { /* Show menu */ }
 
     private void DisplayUserInfo(UserData user, BalanceResponse balance)
