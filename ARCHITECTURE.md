@@ -8,10 +8,11 @@ This document describes the internal architecture, services, and logic of the Fu
 2. [Core Components](#core-components)
 3. [Service Layer](#service-layer)
 4. [Network Layer](#network-layer)
-5. [Data Flow](#data-flow)
-6. [Security & Encryption](#security--encryption)
-7. [Caching Strategy](#caching-strategy)
-8. [Asset Loading](#asset-loading)
+5. [API Models](#api-models)
+6. [Data Flow](#data-flow)
+7. [Security & Encryption](#security--encryption)
+8. [Caching Strategy](#caching-strategy)
+9. [Asset Loading](#asset-loading)
 
 ---
 
@@ -292,8 +293,8 @@ JoinRoom(roomGuid)
 public class ClientSessionManager : IClientSessionManager
 {
     private readonly IUserDataService _userDataService;
-    private readonly string _privateGameKey;
     private List<string> _sessionLogs = new List<string>();
+    private SavedSessionResponse _currentSessionData;
 }
 ```
 
@@ -306,37 +307,77 @@ public class ClientSessionManager : IClientSessionManager
 }
 ```
 
+**Saved Session Response:**
+
+```csharp
+public class SavedSessionResponse
+{
+    public string Id { get; set; }              // Unique session identifier
+    public string SessionId { get; set; }        // Event/Room identifier
+    public string SaveSessionId { get; set; }    // Match/Session identifier
+    public string Data { get; set; }             // Encrypted session data
+    public int GameType { get; set; }            // Type of game
+    public string Hash { get; set; }             // Data integrity hash
+    public float ReconnectTime { get; set; }     // Time to reconnect
+}
+```
+
 **Encryption Flow:**
 
 ```
-CreateSession(json)
+CreateSession(json, gameType, eventId, saveSessionId)
    │
    ├─> Create SessionModel
    │     ├─> Data: json
    │     └─> EventsList: _sessionLogs
    │
    ├─> Generate encryption key
-   │     └─> key = RandomString(16, PlatformId * PrivateGameKeyHash)
+   │     └─> key = First 8 chars of GUID(UserId)
    │
    ├─> Encrypt data
    │     └─> AESNonDynamic.Encrypt(sessionModel, key)
    │
+   ├─> Create SavedSessionResponse
+   │     ├─> Data: encrypted string
+   │     ├─> GameType: gameType
+   │     ├─> SessionId: eventId
+   │     ├─> SaveSessionId: saveSessionId
+   │     └─> Hash: HashString(encryptedData, eventId)
+   │
    └─> HTTP POST /api/session/create
-         └─> Send encrypted data
+         ├─> Send encrypted data with metadata
+         └─> Store _currentSessionData for updates
 ```
 
 **Key Features:**
 - AES encryption for session data
-- Encryption key derived from user PlatformId + private game key
+- Encryption key derived from user UserId (GUID-based)
 - Event logging for game replay/debugging
 - Session restoration on reconnection
 - Automatic session cleanup on close
+- Multiple sessions support (user can have several unfinished sessions)
+- Game type tracking (Tournament, PVP, Practice, etc.)
+- Data integrity verification with hash
+
+**Game Types:**
+
+```csharp
+public enum GameTypeEnum
+{
+    Indirect_PVP = 0,    // Asynchronous PVP
+    Direct_PVP = 1,      // Real-time PVP
+    Tournament = 3,      // Tournament mode
+    Rooms = 4,           // Room-based games
+    Practice = 5,        // Practice/training mode
+}
+```
 
 **Security Measures:**
 - Data encrypted before sending to server
 - Encryption key never sent to server
-- Key derivation uses user-specific + game-specific data
-- Different key for each user
+- Key derivation uses user-specific data (UserId)
+- Unique key for each user
+- Data integrity verified with hash
 
 #### Server Session Manager
 
@@ -359,6 +400,27 @@ public class ServerSessionManager : IServerSessionManager
 - Uses userId as dictionary key
 - Supports concurrent sessions
 - Each user has isolated event list
+
+**Update Session Flow:**
+
+Client tracks current session in `_currentSessionData`:
+
+```
+UpdateSession_Client(json)
+   │
+   ├─> Check if _currentSessionData exists
+   │     └─> If null: Log error, return false
+   │
+   ├─> Encrypt updated data
+   │     └─> Same encryption key as create
+   │
+   ├─> Add metadata from _currentSessionData
+   │     ├─> Id: session identifier
+   │     └─> Hash: HMAC(data, sessionId)
+   │
+   └─> HTTP POST /api/session/update
+         └─> Update existing session
+```
 
 **Session Data Flow:**
 
@@ -467,6 +529,126 @@ X-Request-Hash: HMAC-SHA256(endpoint + requestBody, privateGameKey)
 - Comprehensive error handling
 - Generic return type support
 - Async/await pattern with UniTask
+
+---
+
+## API Models
+
+### Session-Related Models
+
+#### SavedSessionResponse
+
+Complete session information returned by the API.
+
+```csharp
+public class SavedSessionResponse
+{
+    public string Id { get; set; }              // Unique session identifier
+    public string SessionId { get; set; }        // Event/Room identifier
+    public string SaveSessionId { get; set; }    // Match/Session identifier  
+    public string Data { get; set; }             // Encrypted session data
+    public int GameType { get; set; }            // Type of game (GameTypeEnum)
+    public string Hash { get; set; }             // Data integrity hash
+    public float ReconnectTime { get; set; }     // Time available to reconnect (seconds)
+}
+```
+
+**Usage:**
+- Returned by `CreateSession_Client()`
+- Contains all metadata needed to restore session
+- `Data` field is encrypted client-side before sending
+- `Hash` verifies data integrity
+
+#### UnfinishedSessionsResponse
+
+List of unfinished sessions for a user.
+
+```csharp
+public class UnfinishedSessionsResponse
+{
+    public List<SavedSessionResponse> SavedSessions { get; set; }
+}
+```
+
+**Usage:**
+- Returned by `UserHasUnfinishedSession_Client()`
+- User may have multiple unfinished sessions
+- Each session contains full metadata for reconnection
+- Sessions sorted by creation time (newest first)
+
+#### SessionModel
+
+Internal session data structure (before encryption).
+
+```csharp
+public class SessionModel
+{
+    public string Data { get; set; }            // Custom game state (JSON)
+    public List<string> EventsList { get; set; } // Recorded game events
+}
+```
+
+**Usage:**
+- Internal only - not sent directly to API
+- Encrypted and wrapped in SavedSessionResponse
+- `Data` contains custom game state defined by developer
+- `EventsList` contains all recorded events
+
+#### GameTypeEnum
+
+Types of game sessions supported by the platform.
+
+```csharp
+public enum GameTypeEnum
+{
+    Indirect_PVP = 0,    // Asynchronous player vs player
+    Direct_PVP = 1,      // Real-time player vs player
+    Tournament = 3,      // Tournament mode
+    Rooms = 4,           // Room/lobby based games
+    Practice = 5,        // Practice/training mode
+}
+```
+
+**Usage:**
+- Passed to `CreateSession_Client()`
+- Helps platform identify session type
+- Affects reconnection behavior and time limits
+- Used for analytics and matchmaking
+
+### Model Relationships
+
+```
+User creates session
+   │
+   ├─> CreateSession_Client()
+   │     ├─> Input: SessionModel (internal)
+   │     │     ├─> Data: custom JSON
+   │     │     └─> EventsList: []
+   │     │
+   │     ├─> Encrypt SessionModel
+   │     │
+   │     └─> Output: SavedSessionResponse
+   │           ├─> Data: encrypted SessionModel
+   │           ├─> SessionId: eventId
+   │           ├─> SaveSessionId: matchId
+   │           └─> GameType: enum value
+   │
+   └─> Session stored on server
+
+User reconnects
+   │
+   ├─> UserHasUnfinishedSession_Client()
+   │     └─> Returns: UnfinishedSessionsResponse
+   │           └─> SavedSessions: [session1, session2, ...]
+   │
+   └─> ReconnectToUnfinishedSession_Client(sessionId)
+         ├─> Input: session.Id
+         ├─> Get SavedSessionResponse from server
+         ├─> Decrypt Data field
+         └─> Parse SessionModel
+               ├─> Data: restore game state
+               └─> EventsList: restore events
+```
 
 ---
 
@@ -586,16 +768,27 @@ X-Request-Hash: HMAC-SHA256(endpoint + requestBody, privateGameKey)
       │
       ├─> UserHasUnfinishedSession_Client()
       │     └─> GET /api/session/unfinished
-      │           └─> Returns true if exists
+      │           └─> Returns UnfinishedSessionsResponse
+      │                 └─> List of SavedSessionResponse
       │
-      └─> ReconnectToUnfishedSession_Client()
-            ├─> GET /api/session/unfinished
-            │     └─> Returns encrypted session data
+      ├─> Show list of sessions (or auto-select)
+      │     └─> User selects session to resume
+      │
+      └─> ReconnectToUnfinishedSession_Client(sessionId)
+            ├─> GET /api/session/reconnect?id={sessionId}
+            │     └─> Returns SavedSessionResponse
+            │
+            ├─> Store _currentSessionData
             │
             ├─> Decrypt session data
-            │     └─> AES.Decrypt(data, key)
+            │     └─> AES.Decrypt(data.Data, key)
+            │           └─> key = First 8 chars of GUID(UserId)
             │
             ├─> Restore _sessionLogs
+            ├─> Restore room data from session
+            │     ├─> EventId = session.SessionId
+            │     └─> SessionOrMatchId = session.SaveSessionId
+            │
             └─> Restore game state
 ```
 
@@ -610,20 +803,20 @@ X-Request-Hash: HMAC-SHA256(endpoint + requestBody, privateGameKey)
 **Key Generation:**
 
 ```csharp
-private int GetEncryptionKey()
+private string GetEncryptionKey()
 {
-    return _userDataService.GetCachedUserData().PlatformId 
-           * _privateGameKey.GetHashCode();
+    return IntToGuidHelper.IntToGuid(_userDataService.GetCachedUserData().UserId)
+           .ToString()
+           .Take(8)
+           .ToString();
 }
-
-var key = Utils.RandomString(16, GetEncryptionKey());
 ```
 
 **Process:**
-1. Combine user's PlatformId with private game key hash
-2. Use combined value as seed for random string generator
-3. Generate 16-character encryption key
-4. Key is deterministic (same for user + game combination)
+1. Convert user's UserId to GUID format
+2. Take first 8 characters of the GUID string
+3. Use as encryption key (8-character string)
+4. Key is deterministic (same for user)
 5. Key never transmitted to server
 
 **Encryption Flow:**
@@ -634,28 +827,37 @@ Session Data (JSON)
    ├─> Serialize to JSON string
    │
    ├─> Generate encryption key
-   │     └─> seed = PlatformId * PrivateGameKeyHash
-   │           └─> key = RandomString(16, seed)
+   │     └─> key = First 8 chars of GUID(UserId)
    │
    ├─> AES.Encrypt(json, key)
    │     └─> Returns base64 encrypted string
    │
-   └─> Send encrypted string to server
+   ├─> Create SavedSessionResponse
+   │     ├─> Data: encrypted string
+   │     ├─> SessionId: eventId
+   │     ├─> SaveSessionId: saveSessionId
+   │     ├─> GameType: gameType enum value
+   │     └─> Hash: HMAC(encryptedData, eventId)
+   │
+   └─> Send to server with metadata
 ```
 
 **Decryption Flow:**
 
 ```
-Encrypted Data from Server
+SavedSessionResponse from Server
+   │
+   ├─> Extract encrypted Data field
    │
    ├─> Generate same encryption key
-   │     └─> seed = PlatformId * PrivateGameKeyHash
-   │           └─> key = RandomString(16, seed)
+   │     └─> key = First 8 chars of GUID(UserId)
    │
-   ├─> AES.Decrypt(encryptedString, key)
+   ├─> AES.Decrypt(Data, key)
    │     └─> Returns JSON string
    │
    └─> Deserialize JSON to SessionModel
+         ├─> Data: custom game state
+         └─> EventsList: recorded events
 ```
 
 ### Server-Side Security

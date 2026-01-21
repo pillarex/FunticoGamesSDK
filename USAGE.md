@@ -885,48 +885,94 @@ Use these methods in **client builds** for session management and reconnection.
 
 ### `UserHasUnfinishedSession_Client`
 
-Checks if user has an unfinished game session.
+Checks if user has unfinished game sessions.
 
 **Signature:**
 ```csharp
-public UniTask<bool> UserHasUnfinishedSession_Client()
+public UniTask<UnfinishedSessionsResponse> UserHasUnfinishedSession_Client()
 ```
 
-**Returns:** `UniTask<bool>` - `true` if unfinished session exists, `false` otherwise
+**Returns:** `UniTask<UnfinishedSessionsResponse>` - Response containing list of unfinished sessions
 
 **Description:**
-Checks if the current user has an interrupted or unfinished game session. Use this at game startup to offer session resumption.
+Retrieves all interrupted or unfinished game sessions for the current user. Use this at game startup to offer session resumption. User may have multiple unfinished sessions if they started multiple games without finishing them.
+
+**UnfinishedSessionsResponse Properties:**
+- `SavedSessions` (List<SavedSessionResponse>) - List of unfinished sessions
+
+**SavedSessionResponse Properties:**
+- `Id` (string) - Unique session identifier
+- `SessionId` (string) - Event/Room identifier
+- `SaveSessionId` (string) - Match/Session identifier
+- `GameType` (int) - Type of game (see GameTypeEnum)
+- `ReconnectTime` (float) - Time remaining to reconnect
+- `Data` (string) - Encrypted session data
+- `Hash` (string) - Data integrity hash
 
 **Usage:**
 ```csharp
-bool hasUnfinished = await FunticoSDK.Instance.UserHasUnfinishedSession_Client();
+UnfinishedSessionsResponse response = await FunticoSDK.Instance.UserHasUnfinishedSession_Client();
+
+if (response != null && response.SavedSessions.Count > 0)
+{
+    Debug.Log($"Found {response.SavedSessions.Count} unfinished session(s)");
+    
+    // Show list to user or auto-reconnect to first
+    var firstSession = response.SavedSessions[0];
+    Debug.Log($"Session ID: {firstSession.Id}");
+    Debug.Log($"Room ID: {firstSession.SessionId}");
+    Debug.Log($"Time to reconnect: {firstSession.ReconnectTime}s");
+}
 ```
 
 ---
 
-### `ReconnectToUnfishedSession_Client`
+### `ReconnectToUnfinishedSession_Client`
 
-Reconnects to an unfinished session and retrieves session data.
+Reconnects to a specific unfinished session and retrieves session data.
 
 **Signature:**
 ```csharp
-public UniTask<string> ReconnectToUnfishedSession_Client()
+public UniTask<string> ReconnectToUnfinishedSession_Client(string id)
 ```
 
-**Returns:** `UniTask<string>` - JSON string containing session data
+**Parameters:**
+- `id` - Unique session identifier (from UnfinishedSessionsResponse)
+
+**Returns:** `UniTask<string>` - Decrypted JSON string containing session data (or null if failed)
 
 **Description:**
-Retrieves the stored data from an unfinished session, allowing the user to resume gameplay from where they left off.
+Retrieves and decrypts the stored data from a specific unfinished session, allowing the user to resume gameplay from where they left off. The session ID must be obtained from `UserHasUnfinishedSession_Client()` response.
 
 **Usage:**
 ```csharp
-string sessionData = await FunticoSDK.Instance.ReconnectToUnfishedSession_Client();
+// First, get list of unfinished sessions
+var sessionsResponse = await FunticoSDK.Instance.UserHasUnfinishedSession_Client();
 
-// Parse session data based on your game's structure
-var savedState = JsonConvert.DeserializeObject<GameState>(sessionData);
-
-// Restore game state
-RestoreGame(savedState);
+if (sessionsResponse != null && sessionsResponse.SavedSessions.Count > 0)
+{
+    // Select session to reconnect (e.g., first one or let user choose)
+    var session = sessionsResponse.SavedSessions[0];
+    
+    // Reconnect to selected session
+    string sessionData = await FunticoSDK.Instance.ReconnectToUnfinishedSession_Client(session.Id);
+    
+    if (sessionData != null)
+    {
+        // Parse session data based on your game's structure
+        var savedState = JsonConvert.DeserializeObject<GameState>(sessionData);
+        
+        // Restore room data
+        currentRoomData = new RoomData()
+        {
+            EventId = session.SessionId,
+            SessionOrMatchId = session.SaveSessionId
+        };
+        
+        // Restore game state
+        RestoreGame(savedState);
+    }
+}
 ```
 
 ---
@@ -937,19 +983,46 @@ Creates a new game session with custom data, most likely you would want to call 
 
 **Signature:**
 ```csharp
-public UniTask<bool> CreateSession_Client(string json)
+public UniTask<SavedSessionResponse> CreateSession_Client(
+    string json, 
+    GameTypeEnum gameType, 
+    string eventId, 
+    string saveSessionId)
 ```
 
 **Parameters:**
 - `json` - JSON string containing custom session data
+- `gameType` - Type of game session (see GameTypeEnum)
+- `eventId` - Event/Room identifier (from RoomData.EventId)
+- `saveSessionId` - Match/Session identifier (from RoomData.SessionOrMatchId)
 
-**Returns:** `UniTask<bool>` - `true` if session created successfully, `false` otherwise
+**Returns:** `UniTask<SavedSessionResponse>` - Created session details (or null if failed)
 
 **Description:**
-Creates a new game session and stores custom data. This data can be retrieved if the session needs to be resumed later.
+Creates a new game session and stores encrypted custom data. This data can be retrieved if the session needs to be resumed later. The session is automatically tracked for reconnection.
+
+**GameTypeEnum Values:**
+- `Indirect_PVP = 0` - Asynchronous player vs player
+- `Direct_PVP = 1` - Real-time player vs player
+- `Tournament = 3` - Tournament mode
+- `Rooms = 4` - Room/lobby based games
+- `Practice = 5` - Practice/training mode
+
+**SavedSessionResponse Properties:**
+- `Id` (string) - Unique session identifier
+- `SessionId` (string) - Event/Room identifier
+- `SaveSessionId` (string) - Match/Session identifier
+- `GameType` (int) - Type of game
+- `Data` (string) - Encrypted session data
+- `Hash` (string) - Data integrity hash
+- `ReconnectTime` (float) - Time available for reconnection
 
 **Usage:**
 ```csharp
+// After joining a room
+RoomData roomData = await FunticoSDK.Instance.JoinRoom(roomGuid);
+
+// Prepare session data
 var sessionData = new 
 {
     roomId = roomData.EventId,
@@ -960,19 +1033,32 @@ var sessionData = new
 };
 
 string json = JsonConvert.SerializeObject(sessionData);
-bool created = await FunticoSDK.Instance.CreateSession_Client(json);
 
-if (created)
+// Create session
+SavedSessionResponse sessionResponse = await FunticoSDK.Instance.CreateSession_Client(
+    json,
+    GameTypeEnum.Rooms,
+    roomData.EventId,
+    roomData.SessionOrMatchId
+);
+
+if (sessionResponse != null)
 {
-    Debug.Log("Session created!");
+    Debug.Log($"Session created! ID: {sessionResponse.Id}");
     StartGame();
+}
+else
+{
+    Debug.LogError("Failed to create session");
 }
 ```
 
 **Important Notes:**
 - Call after joining a room but before starting gameplay
 - Store any data needed for session resumption
+- Data is automatically encrypted using user-specific key
 - Automatically tracked for reconnection
+- Must provide eventId and saveSessionId from RoomData
 
 ---
 
@@ -1343,14 +1429,28 @@ public class GameFlowExample : MonoBehaviour
     // ===== 2. CHECK FOR UNFINISHED SESSIONS =====
     private async UniTask CheckReconnection()
     {
-        bool hasUnfinished = await FunticoSDK.Instance.UserHasUnfinishedSession_Client();
+        UnfinishedSessionsResponse sessionsResponse = 
+            await FunticoSDK.Instance.UserHasUnfinishedSession_Client();
+        
+        bool hasUnfinished = sessionsResponse != null && sessionsResponse.SavedSessions.Count > 0;
         
         if (hasUnfinished)
         {
-            bool shouldResume = await ShowResumeDialog();
+            // Show list of unfinished sessions to user or auto-select first
+            var session = sessionsResponse.SavedSessions[0];
+            
+            bool shouldResume = await ShowResumeDialog(session);
             if (shouldResume)
             {
-                string sessionData = await FunticoSDK.Instance.ReconnectToUnfishedSession_Client();
+                string sessionData = await FunticoSDK.Instance.ReconnectToUnfinishedSession_Client(session.Id);
+                
+                // Restore room data from session
+                currentRoomData = new RoomData()
+                {
+                    EventId = session.SessionId,
+                    SessionOrMatchId = session.SaveSessionId
+                };
+                
                 RestoreGameState(sessionData);
                 return;
             }
@@ -1426,13 +1526,21 @@ public class GameFlowExample : MonoBehaviour
             version = Application.version
         };
         
-        bool created = await FunticoSDK.Instance.CreateSession_Client(
-            JsonConvert.SerializeObject(sessionData)
+        SavedSessionResponse sessionResponse = await FunticoSDK.Instance.CreateSession_Client(
+            JsonConvert.SerializeObject(sessionData),
+            GameTypeEnum.Rooms,
+            currentRoomData.EventId,
+            currentRoomData.SessionOrMatchId
         );
         
-        if (created)
+        if (sessionResponse != null)
         {
+            Debug.Log($"Session created! ID: {sessionResponse.Id}");
             StartGameplay();
+        }
+        else
+        {
+            Debug.LogError("Failed to create session");
         }
     }
     
