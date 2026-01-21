@@ -11,9 +11,9 @@ namespace FunticoGamesSDK
 	{
 		private IClientSessionManager _clientSessionManager;
 
-		private void SetupClientSessionManager(IUserDataService userDataService)
+		private void SetupClientSessionManager(IUserDataService userDataService, string privateKey)
 		{
-			_clientSessionManager = new ClientSessionManager(userDataService);
+			_clientSessionManager = new ClientSessionManager(userDataService, privateKey);
 		}
 
 		public UniTask<UnfinishedSessionsResponse> UserHasUnfinishedSession_Client() =>

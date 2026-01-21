@@ -16,9 +16,11 @@ namespace FunticoGamesSDK.SessionsManagement
 		private readonly IUserDataService _userDataService;
 		private List<string> _sessionLogs = new List<string>();
 		private SavedSessionResponse _currentSessionData;
+		private string _privateKey;
 
-		public ClientSessionManager(IUserDataService userDataService)
+		public ClientSessionManager(IUserDataService userDataService, string privateKey)
 		{
+			_privateKey = privateKey;
 			_userDataService = userDataService;
 		}
 
@@ -82,7 +84,11 @@ namespace FunticoGamesSDK.SessionsManagement
 
 		public void RecordEvent_Client(string eventInfo) => _sessionLogs.Add(eventInfo);
 
-		private string GetEncryptionKey() => IntToGuidHelper.IntToGuid(_userDataService.GetCachedUserData().UserId).ToString().Take(8).ToString();
+		private string GetEncryptionKey()
+		{
+			var userGuid = IntToGuidHelper.IntToGuid(_userDataService.GetCachedUserData().UserId).ToString();
+			return userGuid.Take(8).ToString() + _privateKey.TakeLast(8);
+		}
 
 		private SavedSessionResponse EncryptCurrentSessionData(string json)
 		{
