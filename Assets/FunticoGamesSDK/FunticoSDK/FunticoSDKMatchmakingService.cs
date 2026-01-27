@@ -27,7 +27,7 @@ namespace FunticoGamesSDK
 			_matchmakingService = new MatchmakingService(authDataProvider, publicGameKey, sessionId);
 		}
 
-		public UniTask JoinQueue(string region) => _matchmakingService.JoinQueue(region);
+		public UniTask JoinQueue(MatchmakingRegion region, int size) => _matchmakingService.JoinQueue(region, size);
 
 		public UniTask LeaveQueue() => _matchmakingService.LeaveQueue();
 

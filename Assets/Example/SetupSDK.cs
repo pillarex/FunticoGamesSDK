@@ -6,6 +6,7 @@ using FunticoGamesSDK.ViewModels;
 using FunticoGamesSDK.RoomsProviders;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
+using FunticoGamesSDK.APIModels.Matchmaking;
 using FunticoGamesSDK.APIModels.UserData;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -19,7 +20,8 @@ public class SetupSDK : MonoBehaviour
     private bool _finishing;
     private bool _inQueue;
     private string _matchmakingStatus = "";
-    private string _matchmakingRegion = "EU";
+    private MatchmakingRegion _matchmakingRegion = MatchmakingRegion.Europe;
+    private readonly string[] _regionNames = Enum.GetNames(typeof(MatchmakingRegion));
 
     // ===== 1. INITIALIZATION =====
     private async void Start()
@@ -367,17 +369,20 @@ public class SetupSDK : MonoBehaviour
 
     private void DrawMatchmakingControls()
     {
-        GUILayout.BeginArea(new Rect(Screen.width - 310, Screen.height - 210, 300, 200));
+        GUILayout.BeginArea(new Rect(Screen.width - 310, Screen.height - 260, 300, 250));
         GUILayout.BeginVertical(GUI.skin.box);
         
         GUILayout.Label("Matchmaking", GUI.skin.box, GUILayout.Width(280), GUILayout.Height(30));
         GUILayout.Space(5);
         
-        // Region input
-        GUILayout.BeginHorizontal();
-        GUILayout.Label("Region:", GUILayout.Width(60));
-        _matchmakingRegion = GUILayout.TextField(_matchmakingRegion, GUILayout.Width(210));
-        GUILayout.EndHorizontal();
+        // Region selection
+        GUILayout.Label("Region:", GUILayout.Height(20));
+        var selectedIndex = (int)_matchmakingRegion;
+        var newIndex = GUILayout.SelectionGrid(selectedIndex, _regionNames, 3, GUILayout.Height(50));
+        if (newIndex != selectedIndex)
+        {
+            _matchmakingRegion = (MatchmakingRegion)newIndex;
+        }
         
         GUILayout.Space(5);
         
@@ -413,7 +418,7 @@ public class SetupSDK : MonoBehaviour
     {
         _inQueue = true;
         _matchmakingStatus = "Joining queue...";
-        await FunticoSDK.Instance.JoinQueue(_matchmakingRegion);
+        await FunticoSDK.Instance.JoinQueue(_matchmakingRegion, 2);
         if (_inQueue) _matchmakingStatus = "In queue, waiting for match...";
     }
 

@@ -29,13 +29,12 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			_clientSessionId = sessionId;
 		}
 
-		public async UniTask JoinQueue(string region)
+		public async UniTask JoinQueue(MatchmakingRegion region, int size)
 		{
-			var size = 2;
 			try
 			{
 				await CreateConnection();
-				await _connection.InvokeAsync("FindMatch", region, size, _cts.Token);
+				await _connection.InvokeAsync("FindMatch", region.ToShortString(), size, _cts.Token);
 			}
 			catch (Exception ex)
 			{

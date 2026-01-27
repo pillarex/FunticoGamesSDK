@@ -8,8 +8,13 @@ namespace FunticoGamesSDK.MatchmakingProviders
 	{
 		event Action<string> OnMatchStatus;
 		event Action<MatchResult> OnMatchFound;
-		
-		UniTask JoinQueue(string region);
+
+		/// <summary>
+		/// Joins the matchmaking queue.
+		/// </summary>
+		/// <param name="region">The region to search for matches.</param>
+		/// <param name="size">Number of players required for a match. Valid range: 2-16.</param>
+		UniTask JoinQueue(MatchmakingRegion region, int size = 2);
 		UniTask LeaveQueue();
 	}
 }
