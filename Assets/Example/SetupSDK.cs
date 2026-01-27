@@ -17,13 +17,33 @@ public class SetupSDK : MonoBehaviour
     private List<RoomViewModel> availableRooms = new List<RoomViewModel>();
     private Vector2 scrollPosition = Vector2.zero;
     private bool _finishing;
+    private bool _inQueue;
+    private string _matchmakingStatus = "";
+    private string _matchmakingRegion = "EU";
 
     // ===== 1. INITIALIZATION =====
     private async void Start()
     {
         await InitializeSDK();
+        SubscribeToMatchmakingEvents();
         await CheckReconnection();
         await LoadGameData();
+    }
+
+    private void SubscribeToMatchmakingEvents()
+    {
+        FunticoSDK.Instance.OnMatchStatus += status =>
+        {
+            _matchmakingStatus = status;
+            Debug.Log($"Matchmaking Status: {status}");
+        };
+
+        FunticoSDK.Instance.OnMatchFound += result =>
+        {
+            _inQueue = false;
+            _matchmakingStatus = $"Match Found! ID: {result.MatchId}";
+            Debug.Log($"Match Found: {result.MatchId}, Server: {result.ServerUrl}");
+        };
     }
     
     private async UniTask InitializeSDK()
@@ -340,6 +360,69 @@ public class SetupSDK : MonoBehaviour
         
         GUILayout.EndScrollView();
         GUILayout.EndArea();
+        
+        // Matchmaking controls
+        DrawMatchmakingControls();
+    }
+
+    private void DrawMatchmakingControls()
+    {
+        GUILayout.BeginArea(new Rect(Screen.width - 310, Screen.height - 210, 300, 200));
+        GUILayout.BeginVertical(GUI.skin.box);
+        
+        GUILayout.Label("Matchmaking", GUI.skin.box, GUILayout.Width(280), GUILayout.Height(30));
+        GUILayout.Space(5);
+        
+        // Region input
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("Region:", GUILayout.Width(60));
+        _matchmakingRegion = GUILayout.TextField(_matchmakingRegion, GUILayout.Width(210));
+        GUILayout.EndHorizontal();
+        
+        GUILayout.Space(5);
+        
+        // Status
+        if (!string.IsNullOrEmpty(_matchmakingStatus))
+        {
+            GUILayout.Label($"Status: {_matchmakingStatus}", GUILayout.Height(20));
+        }
+        
+        GUILayout.Space(5);
+        
+        // Join/Leave Queue buttons
+        if (_inQueue)
+        {
+            if (GUILayout.Button("Leave Queue", GUILayout.Height(40)))
+            {
+                OnLeaveQueueClick();
+            }
+        }
+        else
+        {
+            if (GUILayout.Button("Join Queue", GUILayout.Height(40)))
+            {
+                OnJoinQueueClick();
+            }
+        }
+        
+        GUILayout.EndVertical();
+        GUILayout.EndArea();
+    }
+
+    private async void OnJoinQueueClick()
+    {
+        _inQueue = true;
+        _matchmakingStatus = "Joining queue...";
+        await FunticoSDK.Instance.JoinQueue(_matchmakingRegion);
+        if (_inQueue) _matchmakingStatus = "In queue, waiting for match...";
+    }
+
+    private async void OnLeaveQueueClick()
+    {
+        _matchmakingStatus = "Leaving queue...";
+        await FunticoSDK.Instance.LeaveQueue();
+        _inQueue = false;
+        _matchmakingStatus = "Left queue";
     }
 }
 

@@ -84,6 +84,12 @@ namespace FunticoGamesSDK
     
         #endregion
 
+        #region Matchmaking
+
+        public static string MATCHMAKER_HUB => API + "/matchmaker";
+
+        #endregion
+
         public static string WithQuery(string url, params string[] additional) =>
             $"{url}?{string.Join("&", additional)}";
         public static string GetUrlAPIWithId(string urlAPI, string id) => $"{urlAPI}/{id}";

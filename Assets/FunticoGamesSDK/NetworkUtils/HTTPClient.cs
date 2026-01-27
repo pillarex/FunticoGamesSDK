@@ -21,13 +21,13 @@ namespace FunticoGamesSDK.NetworkUtils
         private static IErrorHandler _errorHandler;
         private static IAuthDataProvider _authDataProvider;
 
-        public static void Setup(string publicGameKey, string privateGameKey, IAuthDataProvider authDataProvider, IErrorHandler errorHandler)
+        public static void Setup(string publicGameKey, string privateGameKey, string sessionId, IAuthDataProvider authDataProvider, IErrorHandler errorHandler)
         {
             _publicGameKey = publicGameKey;
             _privateGameKey = privateGameKey;
             _authDataProvider = authDataProvider;
             _errorHandler = errorHandler;
-            _sessionId = Guid.NewGuid().ToString();
+            _sessionId = sessionId;
         }
 
         public static async Task<bool> Get_Short(string endPoint, Action<UnityWebRequest> errorHandler = null, string tokenToUse = null)
