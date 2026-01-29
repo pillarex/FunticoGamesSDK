@@ -43,7 +43,7 @@ After that use Package Manager to import packages:
 2. Click `+` > `Add package from git URL...`
 3. Add each URL:
    - `https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask`
-   - `https://github.com/netpyoung/unity.webp.git?path=unity_project/Assets/unity.webp#0.3.21`
+   - `https://github.com/netpyoung/unity.webp.git?path=unity_project/Assets/unity.webp`
 
 Wait for Unity to finish importing before proceeding to Step 2.
 
@@ -66,7 +66,7 @@ If you prefer installing via git URLs instead of OpenUPM, add all to your `Packa
   "dependencies": {
     "com.funticogames.sdk": "https://github.com/pillarex/FunticoGamesSDK.git?path=Assets/FunticoGamesSDK",
     "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
-    "com.netpyoung.webp": "https://github.com/netpyoung/unity.webp.git?path=unity_project/Assets/unity.webp#0.3.21"
+    "com.netpyoung.webp": "https://github.com/netpyoung/unity.webp.git?path=unity_project/Assets/unity.webp"
   }
 }
 ```
