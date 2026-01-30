@@ -1,11 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels.Matchmaking;
 using FunticoGamesSDK.AuthDataProviders;
-using Microsoft.AspNetCore.SignalR.Client;
+using Newtonsoft.Json;
 using Logger = FunticoGamesSDK.Logging.Logger;
 
 namespace FunticoGamesSDK.MatchmakingProviders
@@ -19,8 +18,9 @@ namespace FunticoGamesSDK.MatchmakingProviders
 		private readonly string _publicGameKey;
 		private readonly string _clientSessionId;
 		
-		private HubConnection _connection;
-		private CancellationTokenSource _cts;
+		private SignalR _connection;
+		private UniTaskCompletionSource<bool> _connectTcs;
+		private bool _isConnected;
 
 		public MatchmakingService(IAuthDataProvider authDataProvider, string publicGameKey, string sessionId)
 		{
@@ -34,23 +34,24 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			try
 			{
 				await CreateConnection();
-				await _connection.InvokeAsync("FindMatch", region.ToShortString(), size, _cts.Token);
+				_connection.Invoke("FindMatch", region.ToShortString(), size.ToString());
 			}
 			catch (Exception ex)
 			{
 				Logger.LogError($"MatchmakingService JoinQueue failed: {ex.Message}");
-				await DisposeConnection();
+				DisposeConnection();
 			}
 		}
 
 		public async UniTask LeaveQueue()
 		{
-			if (_connection == null || _connection.State != HubConnectionState.Connected)
+			if (_connection == null || !_isConnected)
 				return;
 
 			try
 			{
-				await _connection.InvokeAsync("LeaveQueue", _cts.Token);
+				_connection.Invoke("LeaveQueue");
+				await UniTask.Delay(1000); // Give time for the message to be sent
 			}
 			catch (Exception ex)
 			{
@@ -58,81 +59,84 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			}
 			finally
 			{
-				await DisposeConnection();
+				DisposeConnection();
 			}
 		}
 
 		private async UniTask CreateConnection()
 		{
-			await DisposeConnection();
-			
-			_cts = new CancellationTokenSource();
+			DisposeConnection();
 
-			var hubUrl = APIConstants.MATCHMAKER_HUB;
+			var hubUrl = APIConstants.WithQuery(APIConstants.MATCHMAKER_HUB, $"gameKey={_publicGameKey}");
 			var userToken = _authDataProvider.GetUserToken();
+			var headers = new Dictionary<string, string>
+			{
+				// { "X-User-Key", _publicGameKey },
+				{ "X-Client-Session-Id", _clientSessionId }
+			};
 
-			_connection = new HubConnectionBuilder()
-				.WithUrl(hubUrl, options =>
-				{
-					options.AccessTokenProvider = () => Task.FromResult(userToken);
-					options.Headers.Add("X-User-Key", _publicGameKey);
-					options.Headers.Add("X-Client-Session-Id", _clientSessionId);
-				})
-				.WithAutomaticReconnect(new[]
-				{
-					TimeSpan.Zero,
-					TimeSpan.FromSeconds(1),
-					TimeSpan.FromSeconds(3),
-					TimeSpan.FromSeconds(10),
-				})
-				.Build();
+			_connection = new SignalR();
+			_connectTcs = new UniTaskCompletionSource<bool>();
 
+			_connection.ConnectionStarted += OnConnectionStarted;
+			_connection.ConnectionClosed += OnConnectionClosed;
+
+			_connection.Init(hubUrl, userToken, headers);
+			
 			_connection.On<string>("MatchStatus", status =>
 			{
 				Logger.Log($"MatchStatus: {status}");
 				OnMatchStatus?.Invoke(status);
 			});
 
-			_connection.On<MatchResult>("MatchFound", result =>
+			_connection.On<string>("MatchFound", async result =>
 			{
-				Logger.Log($"MatchFound: MatchId={result.MatchId} ServerUrl={result.ServerUrl} Opponents={string.Join(", ", result.Opponents.Select(user => user.UserName))}");
-				OnMatchFound?.Invoke(result);
-				DisposeConnection().Forget();
+				var resultParsed = JsonConvert.DeserializeObject<MatchResult>(result);
+				Logger.Log($"MatchFound: MatchId={resultParsed.MatchId} ServerUrl={resultParsed.ServerUrl} Opponents={string.Join(", ", resultParsed.Opponents.Select(user => user.UserName))}");
+				OnMatchFound?.Invoke(resultParsed);
+				await UniTask.Delay(1000);
+				DisposeConnection();
 			});
 
-			_connection.Reconnecting += error =>
+			_connection.Connect();
+			
+			// Wait for connection with timeout
+			var cts = new System.Threading.CancellationTokenSource(10000);
+			try
 			{
-				Logger.Log($"MatchmakingService Reconnecting: {error?.Message}");
-				return Task.CompletedTask;
-			};
-
-			_connection.Reconnected += newConnectionId =>
+				await _connectTcs.Task.AttachExternalCancellation(cts.Token);
+			}
+			catch (OperationCanceledException)
 			{
-				Logger.Log($"MatchmakingService Reconnected: {newConnectionId}");
-				return Task.CompletedTask;
-			};
-
-			_connection.Closed += error =>
-			{
-				Logger.Log($"MatchmakingService Closed: {error?.Message}");
-				return Task.CompletedTask;
-			};
-
-			await _connection.StartAsync(_cts.Token);
-			Logger.Log($"MatchmakingService Connected: {_connection.ConnectionId}");
+				throw new TimeoutException("Connection timeout");
+			}
+			
+			Logger.Log("MatchmakingService Connected");
 		}
 
-		private async UniTask DisposeConnection()
+		private void OnConnectionStarted(object sender, ConnectionEventArgs e)
 		{
-			_cts?.Cancel();
-			_cts?.Dispose();
-			_cts = null;
+			_isConnected = true;
+			Logger.Log($"MatchmakingService Connected: {e.ConnectionId}");
+			_connectTcs?.TrySetResult(true);
+		}
 
+		private void OnConnectionClosed(object sender, ConnectionEventArgs e)
+		{
+			_isConnected = false;
+			Logger.Log($"MatchmakingService Closed: {e.ConnectionId}");
+		}
+
+		private void DisposeConnection()
+		{
 			if (_connection != null)
 			{
+				_connection.ConnectionStarted -= OnConnectionStarted;
+				_connection.ConnectionClosed -= OnConnectionClosed;
+				
 				try
 				{
-					await _connection.DisposeAsync();
+					_connection.Stop();
 				}
 				catch (Exception ex)
 				{
@@ -140,11 +144,14 @@ namespace FunticoGamesSDK.MatchmakingProviders
 				}
 				_connection = null;
 			}
+			
+			_isConnected = false;
+			_connectTcs = null;
 		}
 
 		public void Dispose()
 		{
-			DisposeConnection().Forget();
+			DisposeConnection();
 		}
 	}
 }

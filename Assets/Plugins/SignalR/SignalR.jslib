@@ -42,6 +42,31 @@ var SignalRLib = {
             .build();
     },
 
+    InitWithAuthJs: function (url, accessToken, headersJson) {
+        url = vars.UTF8ToString(url);
+        accessToken = vars.UTF8ToString(accessToken);
+        headersJson = vars.UTF8ToString(headersJson);
+        
+        var headers = {};
+        try {
+            headers = JSON.parse(headersJson);
+        } catch (e) {
+            console.error('Failed to parse headers JSON:', e);
+        }
+        
+        var options = {
+            accessTokenFactory: function() {
+                return accessToken;
+            },
+            headers: headers
+        };
+        
+        vars.connection = new signalR.HubConnectionBuilder()
+            .withUrl(url, options)
+            .withAutomaticReconnect([0, 1000, 3000, 10000])
+            .build();
+    },
+
     ConnectJs: function (connectedCallback, disconnectedCallback) {
         vars.connectedCallback = connectedCallback;
         vars.disconnectedCallback = disconnectedCallback;
@@ -75,6 +100,14 @@ var SignalRLib = {
                     return console.error(err.toString());
                 });
         }
+    },
+
+    InvokeNoArgsJs: function (methodName) {
+        methodName = vars.UTF8ToString(methodName);
+        vars.connection.invoke(methodName)
+            .catch(function (err) {
+                return console.error(err.toString());
+            });
     },
 
     InvokeJs: function (methodName, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10) {

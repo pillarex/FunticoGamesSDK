@@ -1,11 +1,8 @@
 {
-    "name": "FunticoGamesSDK",
+    "name": "SignalR",
     "rootNamespace": "",
     "references": [
-        "UniTask",
-        "Newtonsoft.Json",
-        "unity.webp",
-        "SignalR"
+        "Newtonsoft.Json"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

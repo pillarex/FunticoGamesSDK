@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using UnityEngine;
 
 public class ConnectionEventArgs : EventArgs
@@ -50,6 +51,40 @@ public class SignalR
         {
             connection = new HubConnectionBuilder()
             .WithUrl(url)
+            .Build();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError(ex.Message);
+        }
+    }
+
+    public void Init(string url, string accessToken, Dictionary<string, string> headers = null)
+    {
+        try
+        {
+            connection = new HubConnectionBuilder()
+            .WithUrl(url, options =>
+            {
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    options.AccessTokenProvider = () => Task.FromResult(accessToken);
+                }
+                if (headers != null)
+                {
+                    foreach (var header in headers)
+                    {
+                        options.Headers.Add(header.Key, header.Value);
+                    }
+                }
+            })
+            .WithAutomaticReconnect(new[]
+            {
+                TimeSpan.Zero,
+                TimeSpan.FromSeconds(1),
+                TimeSpan.FromSeconds(3),
+                TimeSpan.FromSeconds(10),
+            })
             .Build();
         }
         catch (Exception ex)
@@ -125,6 +160,8 @@ public class SignalR
     }
 
     #region Invoke Editor
+    public async void Invoke(string methodName) =>
+        await connection.InvokeAsync(methodName);
     public async void Invoke(string methodName, object arg1) =>
         await connection.InvokeAsync(methodName, arg1);
     public async void Invoke(string methodName, object arg1, object arg2) =>
@@ -172,9 +209,18 @@ public class SignalR
     [DllImport("__Internal")]
     private static extern void InitJs(string hubUrl);
 
+    [DllImport("__Internal")]
+    private static extern void InitWithAuthJs(string hubUrl, string accessToken, string headersJson);
+
     public void Init(string url)
     {
         InitJs(url);
+    }
+
+    public void Init(string url, string accessToken, Dictionary<string, string> headers = null)
+    {
+        var headersJson = headers != null ? Newtonsoft.Json.JsonConvert.SerializeObject(headers) : "{}";
+        InitWithAuthJs(url, accessToken ?? "", headersJson);
     }
     #endregion
 
@@ -212,8 +258,13 @@ public class SignalR
 
     #region Invoke JS
     [DllImport("__Internal")]
+    private static extern void InvokeNoArgsJs(string methodName);
+
+    [DllImport("__Internal")]
     private static extern void InvokeJs(string methodName, string arg1, string arg2, string arg3, string arg4, string arg5, string arg6, string arg7, string arg8, string arg9, string arg10);
 
+    public void Invoke(string methodName) =>
+        InvokeNoArgsJs(methodName);
     public void Invoke(string methodName, object arg1) =>
         InvokeJs(methodName, arg1.ToString(), null, null, null, null, null, null, null, null, null);
     public void Invoke(string methodName, object arg1, object arg2) =>
@@ -258,109 +309,121 @@ public class SignalR
     [DllImport("__Internal")]
     private static extern void OnJs(string methodName, string argCount, Action<string, string, string, string, string, string, string, string, string> handlerCallback);
 
+    private static object ParseArg(string value, Type targetType)
+    {
+        try
+        {
+            return Convert.ChangeType(value, targetType);
+        }
+        catch
+        {
+            return JsonConvert.DeserializeObject(value, targetType);
+        }
+    }
+
     [MonoPInvokeCallback(typeof(Action<string, string>))]
     private static void HandlerCallback1(string methodName, string arg1)
     {
-        handlers.TryGetValue(methodName, out HandlerAction handler);
-        types.TryGetValue(methodName, out List<Type> type);
-        handler.Invoke(Convert.ChangeType(arg1, type[0]));
+        handlers.Remove(methodName, out HandlerAction handler);
+        types.Remove(methodName, out List<Type> type);
+        handler.Invoke(ParseArg(arg1, type[0]));
     }
     [MonoPInvokeCallback(typeof(Action<string, string, string>))]
     private static void HandlerCallback2(string methodName, string arg1, string arg2)
     {
-        handlers.TryGetValue(methodName, out HandlerAction handler);
-        types.TryGetValue(methodName, out List<Type> type);
-        handler.Invoke(Convert.ChangeType(arg1, type[0]), Convert.ChangeType(arg2, type[1]));
+        handlers.Remove(methodName, out HandlerAction handler);
+        types.Remove(methodName, out List<Type> type);
+        handler.Invoke(ParseArg(arg1, type[0]), ParseArg(arg2, type[1]));
     }
     [MonoPInvokeCallback(typeof(Action<string, string, string, string>))]
     private static void HandlerCallback3(string methodName, string arg1, string arg2, string arg3)
     {
-        handlers.TryGetValue(methodName, out HandlerAction handler);
-        types.TryGetValue(methodName, out List<Type> type);
-        handler.Invoke(Convert.ChangeType(arg1, type[0]), Convert.ChangeType(arg2, type[1]), Convert.ChangeType(arg3, type[2]));
+        handlers.Remove(methodName, out HandlerAction handler);
+        types.Remove(methodName, out List<Type> type);
+        handler.Invoke(ParseArg(arg1, type[0]), ParseArg(arg2, type[1]), ParseArg(arg3, type[2]));
     }
     [MonoPInvokeCallback(typeof(Action<string, string, string, string, string>))]
     private static void HandlerCallback4(string methodName, string arg1, string arg2, string arg3, string arg4)
     {
-        handlers.TryGetValue(methodName, out HandlerAction handler);
-        types.TryGetValue(methodName, out List<Type> type);
-        handler.Invoke(Convert.ChangeType(arg1, type[0]), Convert.ChangeType(arg2, type[1]), Convert.ChangeType(arg3, type[2]), Convert.ChangeType(arg4, type[3]));
+        handlers.Remove(methodName, out HandlerAction handler);
+        types.Remove(methodName, out List<Type> type);
+        handler.Invoke(ParseArg(arg1, type[0]), ParseArg(arg2, type[1]), ParseArg(arg3, type[2]), ParseArg(arg4, type[3]));
     }
     [MonoPInvokeCallback(typeof(Action<string, string, string, string, string, string>))]
     private static void HandlerCallback5(string methodName, string arg1, string arg2, string arg3, string arg4, string arg5)
     {
-        handlers.TryGetValue(methodName, out HandlerAction handler);
-        types.TryGetValue(methodName, out List<Type> type);
-        handler.Invoke(Convert.ChangeType(arg1, type[0]), Convert.ChangeType(arg2, type[1]), Convert.ChangeType(arg3, type[2]), Convert.ChangeType(arg4, type[3]), Convert.ChangeType(arg5, type[4]));
+        handlers.Remove(methodName, out HandlerAction handler);
+        types.Remove(methodName, out List<Type> type);
+        handler.Invoke(ParseArg(arg1, type[0]), ParseArg(arg2, type[1]), ParseArg(arg3, type[2]), ParseArg(arg4, type[3]), ParseArg(arg5, type[4]));
     }
     [MonoPInvokeCallback(typeof(Action<string, string, string, string, string, string, string>))]
     private static void HandlerCallback6(string methodName, string arg1, string arg2, string arg3, string arg4, string arg5, string arg6)
     {
-        handlers.TryGetValue(methodName, out HandlerAction handler);
-        types.TryGetValue(methodName, out List<Type> type);
-        handler.Invoke(Convert.ChangeType(arg1, type[0]), Convert.ChangeType(arg2, type[1]), Convert.ChangeType(arg3, type[2]), Convert.ChangeType(arg4, type[3]), Convert.ChangeType(arg5, type[4]), Convert.ChangeType(arg6, type[5]));
+        handlers.Remove(methodName, out HandlerAction handler);
+        types.Remove(methodName, out List<Type> type);
+        handler.Invoke(ParseArg(arg1, type[0]), ParseArg(arg2, type[1]), ParseArg(arg3, type[2]), ParseArg(arg4, type[3]), ParseArg(arg5, type[4]), ParseArg(arg6, type[5]));
     }
     [MonoPInvokeCallback(typeof(Action<string, string, string, string, string, string, string, string>))]
     private static void HandlerCallback7(string methodName, string arg1, string arg2, string arg3, string arg4, string arg5, string arg6, string arg7)
     {
-        handlers.TryGetValue(methodName, out HandlerAction handler);
-        types.TryGetValue(methodName, out List<Type> type);
-        handler.Invoke(Convert.ChangeType(arg1, type[0]), Convert.ChangeType(arg2, type[1]), Convert.ChangeType(arg3, type[2]), Convert.ChangeType(arg4, type[3]), Convert.ChangeType(arg5, type[4]), Convert.ChangeType(arg6, type[5]), Convert.ChangeType(arg7, type[6]));
+        handlers.Remove(methodName, out HandlerAction handler);
+        types.Remove(methodName, out List<Type> type);
+        handler.Invoke(ParseArg(arg1, type[0]), ParseArg(arg2, type[1]), ParseArg(arg3, type[2]), ParseArg(arg4, type[3]), ParseArg(arg5, type[4]), ParseArg(arg6, type[5]), ParseArg(arg7, type[6]));
     }
     [MonoPInvokeCallback(typeof(Action<string, string, string, string, string, string, string, string, string>))]
     private static void HandlerCallback8(string methodName, string arg1, string arg2, string arg3, string arg4, string arg5, string arg6, string arg7, string arg8)
     {
-        handlers.TryGetValue(methodName, out HandlerAction handler);
-        types.TryGetValue(methodName, out List<Type> type);
-        handler.Invoke(Convert.ChangeType(arg1, type[0]), Convert.ChangeType(arg2, type[1]), Convert.ChangeType(arg3, type[2]), Convert.ChangeType(arg4, type[3]), Convert.ChangeType(arg5, type[4]), Convert.ChangeType(arg6, type[5]), Convert.ChangeType(arg7, type[6]), Convert.ChangeType(arg8, type[7]));
+        handlers.Remove(methodName, out HandlerAction handler);
+        types.Remove(methodName, out List<Type> type);
+        handler.Invoke(ParseArg(arg1, type[0]), ParseArg(arg2, type[1]), ParseArg(arg3, type[2]), ParseArg(arg4, type[3]), ParseArg(arg5, type[4]), ParseArg(arg6, type[5]), ParseArg(arg7, type[6]), ParseArg(arg8, type[7]));
     }
 
     public void On<T1>(string methodName, Action<T1> handler)
     {
-        types.Add(methodName, new List<Type> { typeof(T1) });
-        handlers.Add(methodName, args => handler((T1)args[0]));
+        types[methodName] = new List<Type> { typeof(T1) };
+        handlers[methodName] = args => handler((T1)args[0]);
         OnJs(methodName, "1", HandlerCallback1);
     }
     public void On<T1, T2>(string methodName, Action<T1, T2> handler)
     {
-        types.Add(methodName, new List<Type> { typeof(T1), typeof(T2) });
-        handlers.Add(methodName, args => handler((T1)args[0], (T2)args[1]));
+        types[methodName] = new List<Type> { typeof(T1), typeof(T2) };
+        handlers[methodName] = args => handler((T1)args[0], (T2)args[1]);
         OnJs(methodName, "2", HandlerCallback2);
     }
     public void On<T1, T2, T3>(string methodName, Action<T1, T2, T3> handler)
     {
-        types.Add(methodName, new List<Type> { typeof(T1), typeof(T2), typeof(T3) });
-        handlers.Add(methodName, args => handler((T1)args[0], (T2)args[1], (T3)args[2]));
+        types[methodName] = new List<Type> { typeof(T1), typeof(T2), typeof(T3) };
+        handlers[methodName] = args => handler((T1)args[0], (T2)args[1], (T3)args[2]);
         OnJs(methodName, "3", HandlerCallback3);
     }
     public void On<T1, T2, T3, T4>(string methodName, Action<T1, T2, T3, T4> handler)
     {
-        types.Add(methodName, new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4) });
-        handlers.Add(methodName, args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3]));
+        types[methodName] = new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4) };
+        handlers[methodName] = args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3]);
         OnJs(methodName, "4", HandlerCallback4);
     }
     public void On<T1, T2, T3, T4, T5>(string methodName, Action<T1, T2, T3, T4, T5> handler)
     {
-        types.Add(methodName, new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5) });
-        handlers.Add(methodName, args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3], (T5)args[4]));
+        types[methodName] = new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5) };
+        handlers[methodName] = args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3], (T5)args[4]);
         OnJs(methodName, "5", HandlerCallback5);
     }
     public void On<T1, T2, T3, T4, T5, T6>(string methodName, Action<T1, T2, T3, T4, T5, T6> handler)
     {
-        types.Add(methodName, new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5), typeof(T6) });
-        handlers.Add(methodName, args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3], (T5)args[4], (T6)args[5]));
+        types[methodName] = new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5), typeof(T6) };
+        handlers[methodName] = args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3], (T5)args[4], (T6)args[5]);
         OnJs(methodName, "6", HandlerCallback6);
     }
     public void On<T1, T2, T3, T4, T5, T6, T7>(string methodName, Action<T1, T2, T3, T4, T5, T6, T7> handler)
     {
-        types.Add(methodName, new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5), typeof(T6), typeof(T7) });
-        handlers.Add(methodName, args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3], (T5)args[4], (T6)args[5], (T7)args[6]));
+        types[methodName] = new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5), typeof(T6), typeof(T7) };
+        handlers[methodName] = args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3], (T5)args[4], (T6)args[5], (T7)args[6]);
         OnJs(methodName, "7", HandlerCallback7);
     }
     public void On<T1, T2, T3, T4, T5, T6, T7, T8>(string methodName, Action<T1, T2, T3, T4, T5, T6, T7, T8> handler)
     {
-        types.Add(methodName, new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5), typeof(T6), typeof(T7), typeof(T8) });
-        handlers.Add(methodName, args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3], (T5)args[4], (T6)args[5], (T7)args[6], (T8)args[7]));
+        types[methodName] = new List<Type> { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5), typeof(T6), typeof(T7), typeof(T8) };
+        handlers[methodName] = args => handler((T1)args[0], (T2)args[1], (T3)args[2], (T4)args[3], (T5)args[4], (T6)args[5], (T7)args[6], (T8)args[7]);
         OnJs(methodName, "8", HandlerCallback8);
     }
     #endregion
