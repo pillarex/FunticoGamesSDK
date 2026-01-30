@@ -137,6 +137,7 @@ namespace FunticoGamesSDK.MatchmakingProviders
 				try
 				{
 					_connection.Stop();
+					Logger.Log($"MatchmakingService Connection closed");
 				}
 				catch (Exception ex)
 				{

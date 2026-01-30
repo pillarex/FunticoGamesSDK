@@ -1,10 +1,11 @@
 {
-    "name": "FunticoGamesSDK",
+    "name": "FunticoGamesSDK.Matchmaking",
     "rootNamespace": "",
     "references": [
+        "FunticoGamesSDK",
+        "SignalR",
         "UniTask",
-        "Newtonsoft.Json",
-        "unity.webp"
+        "Newtonsoft.Json"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -12,7 +13,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "USE_FUNTICO_MATCHMAKING"
+    ],
     "versionDefines": [],
     "noEngineReferences": false
 }

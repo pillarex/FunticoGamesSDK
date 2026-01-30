@@ -18,6 +18,10 @@ namespace FunticoGamesSDK
 		private string _userToken;
 		private string _sessionId;
 		private IErrorHandler _errorHandler;
+		
+		// Public accessors for optional modules
+		public string PublicGameKey => _publicGameKey;
+		public string SessionId => _sessionId;
 
 		private static FunticoSDK _instance;
 		public static FunticoSDK Instance => _instance ??= new FunticoSDK(); 
@@ -38,7 +42,6 @@ namespace FunticoGamesSDK
 			SetupServerSessionManager();
 			SetupClientSessionManager(_userDataService, _privateGameKey);
 			SetupRoomsProvider(privateGameKey, _userDataService, _authDataProvider, _clientSessionManager, _serverSessionManager, _errorHandler);
-			SetupMatchmakingService(publicGameKey, _sessionId, _authDataProvider);
 			HTTPClient.Setup(publicGameKey, privateGameKey, _sessionId, _authDataProvider, errorHandler);
 			await WarmupServices();
 		}

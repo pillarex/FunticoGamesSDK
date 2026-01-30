@@ -1,14 +1,20 @@
 using System;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels.Matchmaking;
-using FunticoGamesSDK.AuthDataProviders;
 using FunticoGamesSDK.MatchmakingProviders;
 
 namespace FunticoGamesSDK
 {
-	public partial class FunticoSDK : IMatchmakingService
+	/// <summary>
+	/// Matchmaking service for FunticoSDK.
+	/// Requires USE_FUNTICO_MATCHMAKING scripting define symbol.
+	/// </summary>
+	public class FunticoMatchmaking : IMatchmakingService
 	{
-		private IMatchmakingService _matchmakingService;
+		private static FunticoMatchmaking _instance;
+		public static FunticoMatchmaking Instance => _instance ??= new FunticoMatchmaking();
+
+		private readonly IMatchmakingService _matchmakingService;
 
 		public event Action<string> OnMatchStatus
 		{
@@ -22,9 +28,10 @@ namespace FunticoGamesSDK
 			remove => _matchmakingService.OnMatchFound -= value;
 		}
 
-		private void SetupMatchmakingService(string publicGameKey, string sessionId, IAuthDataProvider authDataProvider)
+		private FunticoMatchmaking()
 		{
-			_matchmakingService = new MatchmakingService(authDataProvider, publicGameKey, sessionId);
+			var sdk = FunticoSDK.Instance;
+			_matchmakingService = new MatchmakingService(sdk, sdk.PublicGameKey, sdk.SessionId);
 		}
 
 		public UniTask JoinQueue(MatchmakingRegion region, int size) => _matchmakingService.JoinQueue(region, size);

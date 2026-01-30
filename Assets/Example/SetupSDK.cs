@@ -6,7 +6,9 @@ using FunticoGamesSDK.ViewModels;
 using FunticoGamesSDK.RoomsProviders;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
+#if USE_FUNTICO_MATCHMAKING
 using FunticoGamesSDK.APIModels.Matchmaking;
+#endif
 using FunticoGamesSDK.APIModels.UserData;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -18,35 +20,41 @@ public class SetupSDK : MonoBehaviour
     private List<RoomViewModel> availableRooms = new List<RoomViewModel>();
     private Vector2 scrollPosition = Vector2.zero;
     private bool _finishing;
+#if USE_FUNTICO_MATCHMAKING
     private bool _inQueue;
     private string _matchmakingStatus = "";
     private MatchmakingRegion _matchmakingRegion = MatchmakingRegion.Europe;
     private readonly string[] _regionNames = Enum.GetNames(typeof(MatchmakingRegion));
+#endif
 
     // ===== 1. INITIALIZATION =====
     private async void Start()
     {
         await InitializeSDK();
+#if USE_FUNTICO_MATCHMAKING
         SubscribeToMatchmakingEvents();
+#endif
         await CheckReconnection();
         await LoadGameData();
     }
 
+#if USE_FUNTICO_MATCHMAKING
     private void SubscribeToMatchmakingEvents()
     {
-        FunticoSDK.Instance.OnMatchStatus += status =>
+        FunticoMatchmaking.Instance.OnMatchStatus += status =>
         {
             _matchmakingStatus = status;
             Debug.Log($"Matchmaking Status: {status}");
         };
 
-        FunticoSDK.Instance.OnMatchFound += result =>
+        FunticoMatchmaking.Instance.OnMatchFound += result =>
         {
             _inQueue = false;
             _matchmakingStatus = $"Match Found! ID: {result.MatchId}";
             Debug.Log($"Match Found: {result.MatchId}, Server: {result.ServerUrl}");
         };
     }
+#endif
     
     private async UniTask InitializeSDK()
     {
@@ -363,10 +371,13 @@ public class SetupSDK : MonoBehaviour
         GUILayout.EndScrollView();
         GUILayout.EndArea();
         
+#if USE_FUNTICO_MATCHMAKING
         // Matchmaking controls
         DrawMatchmakingControls();
+#endif
     }
 
+#if USE_FUNTICO_MATCHMAKING
     private void DrawMatchmakingControls()
     {
         GUILayout.BeginArea(new Rect(Screen.width - 310, Screen.height - 260, 300, 250));
@@ -418,17 +429,18 @@ public class SetupSDK : MonoBehaviour
     {
         _inQueue = true;
         _matchmakingStatus = "Joining queue...";
-        await FunticoSDK.Instance.JoinQueue(_matchmakingRegion, 2);
+        await FunticoMatchmaking.Instance.JoinQueue(_matchmakingRegion, 2);
         if (_inQueue) _matchmakingStatus = "In queue, waiting for match...";
     }
 
     private async void OnLeaveQueueClick()
     {
         _matchmakingStatus = "Leaving queue...";
-        await FunticoSDK.Instance.LeaveQueue();
+        await FunticoMatchmaking.Instance.LeaveQueue();
         _inQueue = false;
         _matchmakingStatus = "Left queue";
     }
+#endif
 }
 
 // Example error handler
