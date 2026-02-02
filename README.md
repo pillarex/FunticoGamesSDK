@@ -8,6 +8,7 @@
 
 - 📖 [SDK Usage Guide](./USAGE.md) - detailed instructions on setup and SDK usage
 - 🔧 [Internal Architecture](./ARCHITECTURE.md) - description of internal logic and SDK services
+- 🎮 [Matchmaking Service](./MATCHMAKING.md) - real-time multiplayer matchmaking (optional module)
 
 ## Installation
 

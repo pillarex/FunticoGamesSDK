@@ -68,36 +68,58 @@ Follow instructions at: https://learn.microsoft.com/en-us/dotnet/core/install/li
 
 ## Installing SignalR Dependencies
 
-### Windows
+Since the SDK is installed as a package in `Packages/`, DLL files must be installed separately in the `Assets/` folder.
 
-1. Open PowerShell and navigate to the lib folder:
+### Step 1: Create folder and copy script
+
+1. Create folder `Assets/Plugins/SignalR` in your Unity project
+
+2. Copy one of the installation scripts from the SDK package:
+   - `Packages/com.funticogames.sdk/Matchmaking/SignalR/signalr-installation-way1.ps1`
+   - or `Packages/com.funticogames.sdk/Matchmaking/SignalR/signalr-installation-way2.ps1`
+   
+   > **Note:** Both scripts perform the same function but use different PowerShell syntax. If one doesn't work, try the other.
+
+3. (Optional) Configure the script variables at the top of the file:
    ```powershell
-   cd path\to\Unity\Assets\Plugins\SignalR\lib
+   $signalRVersion = "10.0.1"      # SignalR Client version
+   $netTarget = "netstandard2.0"   # Target framework (netstandard2.0 or netstandard2.1)
+   ```
+
+### Step 2: Run the script
+
+**Windows:**
+
+1. Open PowerShell and navigate to the folder:
+   ```powershell
+   cd path\to\Unity\Assets\Plugins\SignalR
    ```
 
 2. Run the setup script:
    ```powershell
-   .\signalr.ps1
+   .\signalr-installation-way1.ps1
    ```
 
-### macOS / Linux
+**macOS / Linux:**
 
-1. Open a terminal and navigate to the lib folder:
+1. Open a terminal and navigate to the folder:
    ```bash
-   cd /path/to/Unity/Assets/Plugins/SignalR/lib
+   cd /path/to/Unity/Assets/Plugins/SignalR
    ```
 
 2. Run the setup script:
    ```bash
-   pwsh ./signalr.ps1
+   pwsh ./signalr-installation-way1.ps1
    ```
 
-3. The script will:
-   - Download `Microsoft.AspNetCore.SignalR.Client` and all dependencies from NuGet
-   - Extract the `netstandard2.0` compatible DLLs to the `dll/` folder
-   - Clean up temporary files
+### What the script does
 
-4. Refresh Unity (or restart it) to load the new assemblies.
+The script will:
+- Download `Microsoft.AspNetCore.SignalR.Client` and all dependencies from NuGet
+- Extract the `netstandard2.0` compatible DLLs to the `dll/` folder
+- Clean up temporary files
+
+Refresh Unity (or restart it) to load the new assemblies.
 
 ## Troubleshooting
 
@@ -122,7 +144,7 @@ brew install nuget
 
 ### "HubConnection could not be found" in Unity
 
-1. Ensure the DLLs exist in `Assets/Plugins/SignalR/lib/dll/`
+1. Ensure the DLLs exist in `Assets/Plugins/SignalR/dll/`
 2. Refresh the Unity project (Assets > Refresh or Ctrl/Cmd+R)
 3. Check the Unity Console for any import errors
 
@@ -134,19 +156,19 @@ This was a bug in older versions of the script. Update to the latest `signalr.ps
 
 To update to a newer version of SignalR:
 
-1. Edit `signalr.ps1` and change the version number:
+1. Edit the installation script in `Assets/Plugins/SignalR/` and change the version number:
    ```powershell
    $signalRVersion = "10.0.1"  # Change to desired version
    ```
 
 2. Delete the existing `dll/` folder:
    ```bash
-   rm -rf dll/
+   rm -rf Assets/Plugins/SignalR/dll/
    ```
 
 3. Re-run the script:
    ```bash
-   pwsh ./signalr.ps1
+   pwsh ./signalr-installation-way1.ps1
    ```
 
 ## Platform Support
@@ -157,6 +179,12 @@ To update to a newer version of SignalR:
 
 ## Files
 
-- `signalr.ps1` - Setup script that downloads and extracts SignalR DLLs
-- `dll/` - Output directory containing the SignalR assemblies (gitignored)
-- `version.txt` - Current SignalR version tracking
+In SDK package (`Packages/com.funticogames.sdk/Matchmaking/SignalR/`):
+- `signalr-installation-way1.ps1` - Installation script (variant 1)
+- `signalr-installation-way2.ps1` - Installation script (variant 2)
+- `SignalR.cs` - C# wrapper for SignalR
+- `SignalR.jslib` - JavaScript interop for WebGL
+- `version.txt` - Current SignalR version
+
+In your project (`Assets/Plugins/SignalR/`):
+- `dll/` - Output directory containing the SignalR assemblies (created by script)
