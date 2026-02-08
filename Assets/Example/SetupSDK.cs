@@ -123,7 +123,7 @@ public class SetupSDK : MonoBehaviour
         }
 
         // Check affordability
-        if (!room.IsFree && !room.UserCanJoinWithVoucher && room.Ticket.Type == TicketType.Currency)
+        if (!room.IsPrePaid && !room.IsFree && !room.UserCanJoinWithVoucher && room.Ticket.Type == TicketType.Currency)
         {
             bool canAfford = FunticoSDK.Instance.CanAffordFromCache(
                 EntryFeeType.Tico,
