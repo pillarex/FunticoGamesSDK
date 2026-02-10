@@ -67,7 +67,7 @@ namespace FunticoGamesSDK
         public static readonly string Get_Room_Settings = API + "/Rooms/game-settings";
         public static readonly string Get_Room_Settings_Server = API + "/Rooms/game-settings-server";
         public static readonly string Post_Room_Started_Server = API + "/Rooms/start-room-mp";
-        public static readonly string Post_Score_Match_Server = API + "/Rooms/result-player-mp";
+        public static readonly string Post_Score_Match_Server = API + "/Rooms/end-room-mp";
         public static readonly string Get_Room_Leaders = API + "/Rooms/leaders";
         public static readonly string Get_Rooms_History = API + "/Rooms/history";
         public static readonly string Get_Room_Session_History = API + "/Rooms/get-history";
@@ -77,11 +77,23 @@ namespace FunticoGamesSDK
 
         #region Session
 
+        #region Client
+
         public static readonly string UNFINISHED_SESSION = API + "/Session/any-unfinished-sessions";
         public static readonly string CREATE_SESSION = API + "/Session/create-session";
         public static readonly string UPDATE_SESSION = API + "/Session/update-session";
         public static readonly string RECONNECT_TO_SESSION = API + "/Session/reconnect-to-session";
-    
+
+        #endregion
+
+        #region Server
+
+        public static readonly string SERVER_CREATE_SESSION = API + "/Session/create-server-session";
+        public static readonly string SERVER_CLOSE_SESSION = API + "/Session/close-server-session";
+        public static readonly string SERVER_USER_LEAVE_SESSION = API + "/Session/server-session-user-leave";
+
+        #endregion
+
         #endregion
 
 #if USE_FUNTICO_MATCHMAKING

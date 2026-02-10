@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using FunticoGamesSDK.APIModels.ServerSessionsModels;
+using FunticoGamesSDK.Matchmaking.Models;
 
 namespace FunticoGamesSDK.APIModels.Matchmaking
 {

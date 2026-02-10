@@ -17,4 +17,13 @@ namespace FunticoGamesSDK.APIModels
         public Guid TournamentId { get; set; }
         public string Hash { get; set; }
     }
+
+    public class FinishedUser 
+    {
+        public int Score { get; set; }
+        public int UserId { get; set; }
+        public string UserIp { get; set; }
+        public string AdditionalData { get; set; }
+        public List<string> GameEvents { get; set; } = null;
+    }
 }

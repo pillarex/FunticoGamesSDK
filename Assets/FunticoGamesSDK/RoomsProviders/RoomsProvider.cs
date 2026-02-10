@@ -150,7 +150,17 @@ namespace FunticoGamesSDK.RoomsProviders
 			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match, $"eventId={eventId}",
 				$"gameSessionIrOrMatchId={sessionId}");
 			var success = await HTTPClient.Post_Short(url, gameData);
-			_serverSessionManager.CloseCurrentSession_Server(userId);
+			_serverSessionManager.CloseCurrentSession_Server();
+			return success;
+		}
+
+		public async UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, List<FinishedUser> participants)
+		{
+			participants.ForEach(player => player.GameEvents = _serverSessionManager.GetCurrentSessionEvents_Server(player.UserId));
+			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match_Server, $"eventId={eventId}",
+				$"gameSessionIrOrMatchId={sessionId}");
+			var success = await HTTPClient.Post_Short(url, participants);
+			_serverSessionManager.CloseCurrentSession_Server();
 			return success;
 		}
 

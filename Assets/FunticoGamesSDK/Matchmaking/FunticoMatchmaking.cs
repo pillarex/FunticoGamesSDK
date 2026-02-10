@@ -3,7 +3,9 @@ using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels.Matchmaking;
 using FunticoGamesSDK.MatchmakingProviders;
 using System.Collections.Generic;
+using FunticoGamesSDK.APIModels.ServerSessionsModels;
 using FunticoGamesSDK.Logging;
+using FunticoGamesSDK.Matchmaking.Models;
 using Newtonsoft.Json;
 
 namespace FunticoGamesSDK

@@ -1,4 +1,4 @@
-﻿namespace FunticoGamesSDK.APIModels.Matchmaking
+﻿namespace FunticoGamesSDK.Matchmaking.Models
 {
 	public class OpponentData
 	{
@@ -7,5 +7,6 @@
 		public string AvatarUrl { get; set; }
 		public string AvatarType { get; set; }
 		public string BorderUrl { get; set; }
+		public int SdkUserId { get; set; }
 	}
 }

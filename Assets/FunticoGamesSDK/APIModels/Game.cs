@@ -7,5 +7,6 @@
 		Tournament = 3,
 		Rooms = 4,
 		Practice = 5,
+		MultiplayerPvp = 6,
 	}
 }
