@@ -8,5 +8,6 @@ namespace FunticoGamesSDK.APIModels.Matchmaking
 		public Guid MatchId { get; set; }
 		public List<OpponentData> Opponents { get; set; } = new();
 		public string ServerUrl { get; set; }
+		public string JoinKey { get; set; }
 	}
 }
