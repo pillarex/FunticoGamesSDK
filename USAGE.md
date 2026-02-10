@@ -879,6 +879,72 @@ public async void OnPlayerFinishGame(int userId, string userIp, int finalScore)
 
 ---
 
+### `FinishRoomSession_Server` (multiplayer overload)
+
+Finishes a multiplayer game session and submits results for all participants at once (server-side).
+
+**Signature:**
+```csharp
+public UniTask<bool> FinishRoomSession_Server(
+    string eventId, 
+    string sessionId, 
+    List<FinishedUser> participants)
+```
+
+**Parameters:**
+- `eventId` - Event/Room identifier
+- `sessionId` - Session/match identifier
+- `participants` - List of `FinishedUser` with results for each player
+
+**Returns:** `UniTask<bool>` - `true` if results successfully submitted, `false` otherwise
+
+**Description:**
+Completes a multiplayer game session from a dedicated server. Submits scores and additional data for all participants in a single request. Game events recorded via `RecordEvent_Server` are automatically attached to each player's results. After submission, the server session is closed automatically.
+
+**FinishedUser Properties:**
+| Property | Type | Description |
+|----------|------|-------------|
+| `Score` | `int` | Player's final score |
+| `UserId` | `int` | User identifier (Funtico user ID) |
+| `UserIp` | `string` | User IP address (for validation) |
+| `AdditionalData` | `string` | Optional additional data (JSON string) |
+| `GameEvents` | `List<string>` | Game events (auto-filled from session logs) |
+
+**Usage:**
+```csharp
+#if SERVER || UNITY_SERVER
+public async void OnMatchComplete(List<PlayerResult> results)
+{
+    var participants = results.Select(r => new FinishedUser
+    {
+        Score = r.Score,
+        UserId = r.UserId,
+        UserIp = r.IpAddress,
+        AdditionalData = JsonConvert.SerializeObject(new { kills = r.Kills, deaths = r.Deaths })
+    }).ToList();
+
+    bool success = await FunticoSDK.Instance.FinishRoomSession_Server(
+        eventId,
+        sessionId,
+        participants
+    );
+    
+    if (success)
+    {
+        Debug.Log("Match results submitted for all players");
+    }
+}
+#endif
+```
+
+**Important Notes:**
+- Only use in server builds (with SERVER or UNITY_SERVER defines)
+- `GameEvents` for each player are automatically filled from events recorded via `RecordEvent_Server` — you don't need to set them manually
+- Automatically closes the server session after successful submission
+- Preferred over the single-user overload for multiplayer matches
+
+---
+
 ## Client Session Methods
 
 Use these methods in **client builds** for session management and reconnection.
@@ -1007,6 +1073,7 @@ Creates a new game session and stores encrypted custom data. This data can be re
 - `Tournament = 3` - Tournament mode
 - `Rooms = 4` - Room/lobby based games
 - `Practice = 5` - Practice/training mode
+- `MultiplayerPvp = 6` - Real-time multiplayer PvP (server-authoritative)
 
 **SavedSessionResponse Properties:**
 - `Id` (string) - Unique session identifier
@@ -1182,121 +1249,106 @@ public void OnPowerUpUsed(string powerUpName)
 
 Use these methods in **dedicated server builds** (with SERVER or UNITY_SERVER defines).
 
-### `UserHasUnfinishedSession_Server`
+The server session system uses a **session-based** approach: one session is created for all players in the match. The server manages the session lifecycle — creating it when the match starts, tracking player events, handling player disconnections, and closing the session when the match ends.
 
-Checks if a specific user has an unfinished session on the server.
+### `CreateSession_Server`
+
+Creates a new server-side session for a multiplayer match.
 
 **Signature:**
 ```csharp
-public UniTask<bool> UserHasUnfinishedSession_Server(int userId)
+public UniTask<bool> CreateSession_Server(string serverUrl, string sessionId, List<ServerUserData> playersInfo)
 ```
 
 **Parameters:**
-- `userId` - User identifier
+- `serverUrl` - URL of the game server hosting the match
+- `sessionId` - Session/match identifier
+- `playersInfo` - List of `ServerUserData` with information about all players in the match
 
-**Returns:** `UniTask<bool>` - `true` if user has unfinished session, `false` otherwise
+**Returns:** `UniTask<bool>` - `true` if created successfully
 
 **Description:**
-Server-side check for unfinished sessions for a specific user.
+Creates a new game session on the server for a multiplayer match. Registers all participating players and initializes event logs for each player. The session is identified by a server-assigned ID returned from the API.
+
+**ServerUserData Properties:**
+| Property | Type | Description |
+|----------|------|-------------|
+| `JoinKey` | `string` | Unique key used by the player to join the match |
+| `FunticoUserId` | `int` | User ID in Funtico system |
+| `SdkUserId` | `int` | User ID in SDK system |
+| `UserStatus` | `UserGameStatus` | Current game status of the user |
+
+**UserGameStatus Enum:**
+| Value | Code | Description |
+|-------|------|-------------|
+| `Leave` | 0 | Player left the session |
+| `InGame` | 1 | Player is currently in game |
+| `Finished` | 2 | Player has finished the game |
 
 **Usage:**
 ```csharp
 #if SERVER || UNITY_SERVER
-bool hasUnfinished = await FunticoSDK.Instance.UserHasUnfinishedSession_Server(userId);
-if (hasUnfinished)
+var players = new List<ServerUserData>
 {
-    // Offer reconnection to player
+    new ServerUserData
+    {
+        JoinKey = "player1-join-key",
+        FunticoUserId = 101,
+        SdkUserId = 201,
+        UserStatus = UserGameStatus.InGame
+    },
+    new ServerUserData
+    {
+        JoinKey = "player2-join-key",
+        FunticoUserId = 102,
+        SdkUserId = 202,
+        UserStatus = UserGameStatus.InGame
+    }
+};
+
+bool created = await FunticoSDK.Instance.CreateSession_Server(
+    "wss://game-server.example.com:7777",
+    matchId,
+    players
+);
+
+if (created)
+{
+    Debug.Log("Server session created for all players");
 }
 #endif
 ```
 
 ---
 
-### `ReconnectToUnfishedSession_Server`
+### `UserLeaveSession_Server`
 
-Retrieves session data for a user's unfinished session.
+Notifies the API that a user has left the current session.
 
 **Signature:**
 ```csharp
-public UniTask<string> ReconnectToUnfishedSession_Server(int userId)
+public UniTask<bool> UserLeaveSession_Server(int userId)
 ```
 
 **Parameters:**
-- `userId` - User identifier
+- `userId` - User identifier (Funtico user ID)
 
-**Returns:** `UniTask<string>` - JSON string containing session data
+**Returns:** `UniTask<bool>` - `true` if the leave was recorded successfully
 
 **Description:**
-Retrieves stored session data for reconnection.
+Reports that a player has disconnected or left the current game session. This is used to track player presence and handle disconnection scenarios. The session itself remains active for the remaining players.
 
 **Usage:**
 ```csharp
 #if SERVER || UNITY_SERVER
-string sessionData = await FunticoSDK.Instance.ReconnectToUnfishedSession_Server(userId);
-var state = JsonConvert.DeserializeObject<GameState>(sessionData);
-RestorePlayerSession(userId, state);
-#endif
-```
-
----
-
-### `CreateSession_Server`
-
-Creates a new server-side session for a user.
-
-**Signature:**
-```csharp
-public UniTask<bool> CreateSession_Server(int userId, string json)
-```
-
-**Parameters:**
-- `userId` - User identifier
-- `json` - JSON string containing session data
-
-**Returns:** `UniTask<bool>` - `true` if created successfully
-
-**Description:**
-Creates a new game session on the server for a specific user.
-
-**Usage:**
-```csharp
-#if SERVER || UNITY_SERVER
-var sessionData = new { roomId = roomId, startTime = DateTime.UtcNow };
-bool created = await FunticoSDK.Instance.CreateSession_Server(
-    userId, 
-    JsonConvert.SerializeObject(sessionData)
-);
-#endif
-```
-
----
-
-### `UpdateSession_Server`
-
-Updates a server-side session for a user. You may want to use it if you want to have a reconnection feature.
-
-**Signature:**
-```csharp
-public UniTask<bool> UpdateSession_Server(int userId, string json)
-```
-
-**Parameters:**
-- `userId` - User identifier
-- `json` - JSON string containing updated session data
-
-**Returns:** `UniTask<bool>` - `true` if updated successfully
-
-**Description:**
-Updates existing session data on the server.
-
-**Usage:**
-```csharp
-#if SERVER || UNITY_SERVER
-var updateData = new { score = currentScore, checkpoint = 5 };
-await FunticoSDK.Instance.UpdateSession_Server(
-    userId, 
-    JsonConvert.SerializeObject(updateData)
-);
+public async void OnPlayerDisconnected(int userId)
+{
+    bool success = await FunticoSDK.Instance.UserLeaveSession_Server(userId);
+    if (success)
+    {
+        Debug.Log($"Player {userId} leave recorded");
+    }
+}
 #endif
 ```
 
@@ -1304,15 +1356,14 @@ await FunticoSDK.Instance.UpdateSession_Server(
 
 ### `CloseCurrentSession_Server`
 
-Closes a server-side session for a user.
+Closes the current server session.
 
 **Signature:**
 ```csharp
-public void CloseCurrentSession_Server(int userId)
+public UniTask<bool> CloseCurrentSession_Server()
 ```
 
-**Parameters:**
-- `userId` - User identifier
+**Returns:** `UniTask<bool>` - `true` if session closed successfully
 
 **Description:**
 This method is not intended for manual use. Sessions are automatically closed when finishing a room session via `FinishRoomSession_Server`. Calling this manually will log a warning.

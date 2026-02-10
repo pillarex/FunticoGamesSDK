@@ -383,7 +383,7 @@ public enum GameTypeEnum
 
 **File**: `Assets/FunticoGamesSDK/SessionsManagement/ServerSessionManager.cs`
 
-**Purpose**: Manages game sessions on server side (no encryption needed).
+**Purpose**: Manages multiplayer game sessions on server side using a session-based approach.
 
 **Architecture:**
 
@@ -392,16 +392,85 @@ public class ServerSessionManager : IServerSessionManager
 {
     // Dictionary: userId -> session events
     private readonly Dictionary<int, List<string>> _sessionLogs;
+    
+    // Current active session
+    private string _currentSessionId;
+    private List<ServerUserData> _currentSessionPlayers;
 }
 ```
 
-**Multi-User Handling:**
-- Maintains separate session logs per user
-- Uses userId as dictionary key
-- Supports concurrent sessions
-- Each user has isolated event list
+**Session-Based Design:**
+- One session per match (not per user)
+- Tracks all players within a single session
+- Maintains separate event logs per player (userId → events)
+- Session lifecycle: Create → Record Events → Close
 
-**Update Session Flow:**
+**Create Session Flow:**
+
+```
+CreateSession_Server(serverUrl, sessionId, playersInfo)
+   │
+   ├─> Build CreateServerSessionRequest
+   │     ├─> Url: serverUrl
+   │     ├─> SessionId: sessionId
+   │     └─> Players: JSON-serialized playersInfo
+   │
+   ├─> HTTP POST /api/Session/create-server-session
+   │     └─> Returns CreateServerSessionResponse { Id }
+   │
+   ├─> On success:
+   │     ├─> Store _currentSessionPlayers = playersInfo
+   │     ├─> Initialize _sessionLogs[player.FunticoUserId] = [] for each player
+   │     └─> Store _currentSessionId = response.Id
+   │
+   └─> Return success
+```
+
+**User Leave Flow:**
+
+```
+UserLeaveSession_Server(userId)
+   │
+   └─> HTTP GET /api/Session/server-session-user-leave?id={sessionId}&userId={userId}
+         └─> Notifies API that user left the match
+```
+
+**Close Session Flow:**
+
+```
+CloseCurrentSession_Server()
+   │
+   ├─> HTTP GET /api/Session/close-server-session?id={sessionId}
+   │
+   └─> On success:
+         ├─> Remove _sessionLogs entries for all players
+         ├─> Clear _currentSessionPlayers = null
+         └─> Clear _currentSessionId = null
+```
+
+**Finish Room (Multiplayer) Flow:**
+
+```
+FinishRoomSession_Server(eventId, sessionId, participants)
+   │
+   ├─> For each participant:
+   │     └─> Attach GameEvents from _sessionLogs[player.UserId]
+   │
+   ├─> HTTP POST /api/Rooms/end-room-mp?eventId={eventId}&gameSessionIrOrMatchId={sessionId}
+   │     └─> Send List<FinishedUser> with scores and events
+   │
+   └─> CloseCurrentSession_Server()
+         └─> Cleanup session state
+```
+
+**Key Differences from Client:**
+- No encryption (server-to-server communication)
+- Session-based: one session covers all players in a match
+- Manages multiple players within a single session
+- Automatic event attachment when finishing match
+- Dedicated server-side API endpoints
+
+**Update Session Flow (Client-side only):**
 
 Client tracks current session in `_currentSessionData`:
 
@@ -421,27 +490,6 @@ UpdateSession_Client(json)
    └─> HTTP POST /api/session/update
          └─> Update existing session
 ```
-
-**Session Data Flow:**
-
-```
-CreateSession_Server(userId, json)
-   │
-   ├─> Create SessionModel
-   │     ├─> Data: json
-   │     └─> EventsList: _sessionLogs[userId]
-   │
-   ├─> HTTP POST /api/session/create?userId={userId}
-   │     └─> Send unencrypted data (server-to-server)
-   │
-   └─> Initialize _sessionLogs[userId] = []
-```
-
-**Key Differences from Client:**
-- No encryption (server-to-server communication)
-- Manages multiple users simultaneously
-- Requires userId parameter for all operations
-- Uses query parameters to identify user
 
 ---
 
@@ -606,6 +654,7 @@ public enum GameTypeEnum
     Tournament = 3,      // Tournament mode
     Rooms = 4,           // Room/lobby based games
     Practice = 5,        // Practice/training mode
+    MultiplayerPvp = 6,  // Real-time multiplayer PvP (server-authoritative)
 }
 ```
 
@@ -614,6 +663,71 @@ public enum GameTypeEnum
 - Helps platform identify session type
 - Affects reconnection behavior and time limits
 - Used for analytics and matchmaking
+- `MultiplayerPvp` is used for server-authoritative real-time multiplayer matches
+
+#### Server Session Models
+
+Models used by the server session system (in `FunticoGamesSDK.APIModels.ServerSessionsModels` namespace).
+
+**CreateServerSessionRequest:**
+```csharp
+public class CreateServerSessionRequest
+{
+    public string Url { get; set; }        // Game server URL
+    public string SessionId { get; set; }  // Session/match identifier
+    public string Players;                 // JSON-serialized list of ServerUserData
+}
+```
+
+**CreateServerSessionResponse:**
+```csharp
+public class CreateServerSessionResponse
+{
+    public string Id { get; set; }         // Server-assigned session ID
+}
+```
+
+**ServerUserData:**
+```csharp
+public class ServerUserData
+{
+    public string JoinKey { get; set; }         // Player's join key
+    public int FunticoUserId { get; set; }      // Funtico user ID
+    public int SdkUserId { get; set; }          // SDK user ID
+    public UserGameStatus UserStatus { get; set; } // Current game status
+}
+```
+
+**UserGameStatus:**
+```csharp
+public enum UserGameStatus
+{
+    Leave = 0,      // Player left the session
+    InGame = 1,     // Player is in game
+    Finished = 2,   // Player has finished
+}
+```
+
+**ServerReconnectModel:**
+```csharp
+public class ServerReconnectModel
+{
+    public string Url { get; set; }       // Server URL for reconnection
+    public string JoinKey { get; set; }   // Key to rejoin the match
+}
+```
+
+**FinishedUser:**
+```csharp
+public class FinishedUser
+{
+    public int Score { get; set; }                   // Final score
+    public int UserId { get; set; }                  // Funtico user ID
+    public string UserIp { get; set; }               // User IP address
+    public string AdditionalData { get; set; }       // Optional extra data
+    public List<string> GameEvents { get; set; }     // Auto-filled from session logs
+}
+```
 
 ### Model Relationships
 

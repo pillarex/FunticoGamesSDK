@@ -128,7 +128,7 @@ Returns server setup data from environment variables. **Server-side only** (requ
 public ServerSetupData GetServerSetupData()
 ```
 
-**Returns:** `ServerSetupData` - Server configuration including match ID and player data
+**Returns:** `ServerSetupData` - Server configuration including match ID and players data
 
 **Example:**
 ```csharp
@@ -143,7 +143,7 @@ foreach (var player in setupData.Players)
 #endif
 ```
 
-**Note:** This method reads from environment variables (`MatchId`, `User_Keys`) that are set by the matchmaking server when spawning game server instances.
+**Note:** This method reads from environment variables (`MatchId`, `User_Keys`) that are set by the matchmaking API when spawning game server instances.
 
 ---
 
@@ -240,6 +240,7 @@ Opponent data in a match.
 | `AvatarUrl` | `string` | User avatar URL |
 | `AvatarType` | `string` | Avatar type |
 | `BorderUrl` | `string` | Profile border URL |
+| `SdkUserId` | `int` | User ID in SDK system |
 
 ---
 
