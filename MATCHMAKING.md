@@ -120,6 +120,33 @@ await FunticoMatchmaking.Instance.LeaveQueue();
 
 ---
 
+#### GetServerSetupData
+
+Returns server setup data from environment variables. **Server-side only** (requires `SERVER` or `UNITY_SERVER` define).
+
+```csharp
+public ServerSetupData GetServerSetupData()
+```
+
+**Returns:** `ServerSetupData` - Server configuration including match ID and player data
+
+**Example:**
+```csharp
+#if SERVER || UNITY_SERVER
+var setupData = FunticoMatchmaking.Instance.GetServerSetupData();
+Debug.Log($"Match ID: {setupData.MatchId}");
+
+foreach (var player in setupData.Players)
+{
+    Debug.Log($"Player key: {player.Key}, Name: {player.Value.UserName}");
+}
+#endif
+```
+
+**Note:** This method reads from environment variables (`MatchId`, `User_Keys`) that are set by the matchmaking server when spawning game server instances.
+
+---
+
 #### Dispose
 
 Releases resources and closes the connection.
@@ -213,6 +240,18 @@ Opponent data in a match.
 | `AvatarUrl` | `string` | User avatar URL |
 | `AvatarType` | `string` | Avatar type |
 | `BorderUrl` | `string` | Profile border URL |
+
+---
+
+### ServerSetupData
+
+Server configuration data (server-side only).
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `MatchId` | `string` | Match identifier |
+| `RoomSettings` | `string` | Room configuration settings |
+| `Players` | `Dictionary<string, OpponentData>` | Player data keyed by player identifier |
 
 ---
 
