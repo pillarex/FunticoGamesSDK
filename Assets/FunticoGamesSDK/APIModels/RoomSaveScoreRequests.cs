@@ -22,6 +22,7 @@ namespace FunticoGamesSDK.APIModels
     {
         public int Score { get; set; }
         public int UserId { get; set; }
+        public int FunticoUserId { get; set; }
         public string UserIp { get; set; }
         public string AdditionalData { get; set; }
         public List<string> GameEvents { get; set; } = null;

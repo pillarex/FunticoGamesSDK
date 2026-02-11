@@ -236,11 +236,11 @@ Opponent data in a match.
 | Property | Type | Description |
 |----------|------|-------------|
 | `UserName` | `string` | User name |
-| `FunticoId` | `int` | Unique ID in Funtico system |
+| `FunticoId` | `int` | Unique ID in Funtico platform (same as `UserData.PlatformId`) |
 | `AvatarUrl` | `string` | User avatar URL |
 | `AvatarType` | `string` | Avatar type |
 | `BorderUrl` | `string` | Profile border URL |
-| `SdkUserId` | `int` | User ID in SDK system |
+| `SdkUserId` | `int` | User ID in SDK system (same as `UserData.UserId`) |
 
 ---
 

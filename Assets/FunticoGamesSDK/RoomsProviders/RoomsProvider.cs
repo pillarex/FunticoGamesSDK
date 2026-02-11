@@ -137,7 +137,7 @@ namespace FunticoGamesSDK.RoomsProviders
 			return success;
 		}
 
-		public async UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId,
+		public async UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId, int funticoUserId,
 			string userIp)
 		{
 			var gameData = new RoomSaveScoreRequest()
@@ -145,12 +145,12 @@ namespace FunticoGamesSDK.RoomsProviders
 				Score = score,
 				UserId = userId,
 				Ip = userIp,
-				GameEvents = _serverSessionManager.GetCurrentSessionEvents_Server(userId) 
+				GameEvents = _serverSessionManager.GetCurrentSessionEvents_Server(funticoUserId) 
 			};
 			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match, $"eventId={eventId}",
 				$"gameSessionIrOrMatchId={sessionId}");
 			var success = await HTTPClient.Post_Short(url, gameData);
-			_serverSessionManager.CloseCurrentSession_Server();
+			_serverSessionManager.CloseCurrentSession_Server().Forget();
 			return success;
 		}
 
@@ -160,7 +160,7 @@ namespace FunticoGamesSDK.RoomsProviders
 			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match_Server, $"eventId={eventId}",
 				$"gameSessionIrOrMatchId={sessionId}");
 			var success = await HTTPClient.Post_Short(url, participants);
-			_serverSessionManager.CloseCurrentSession_Server();
+			_serverSessionManager.CloseCurrentSession_Server().Forget();
 			return success;
 		}
 

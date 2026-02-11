@@ -8,12 +8,12 @@ namespace FunticoGamesSDK.SessionsManagement
 	{
 		public UniTask<bool> CreateSession_Server(string serverUrl, string sessionId, List<ServerUserData> playersInfo);
 
-		public UniTask<bool> UserLeaveSession_Server(int userId);
+		public UniTask<bool> UserLeaveSession_Server(int platformUserId);
 
 		public UniTask<bool> CloseCurrentSession_Server();
 
-		public List<string> GetCurrentSessionEvents_Server(int userId);
+		public List<string> GetCurrentSessionEvents_Server(int platformUserId);
 
-		public void RecordEvent_Server(int userId, string eventInfo);
+		public void RecordEvent_Server(int platformUserId, string eventInfo);
 	}
 }

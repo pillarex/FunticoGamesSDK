@@ -154,8 +154,8 @@ Retrieves complete user profile information. On first call or when `useCache=fal
 
 **UserData Properties:**
 - `Name` (string) - Username
-- `UserId` (int) - Unique user identifier
-- `PlatformId` (int) - Unique Platform identifier
+- `UserId` (int) - Unique user identifier in SDK system (same as `SdkUserId` in server session models)
+- `PlatformId` (int) - Unique user identifier in Funtico platform (same as `FunticoUserId` in server session models, used as `platformUserId` parameter in server methods)
 - `Level` (int) - Player level
 - `Rating` (int) - Player rating
 - `Experience` (int) - Current experience points
@@ -836,6 +836,7 @@ public UniTask<bool> FinishRoomSession_Server(
     string sessionId, 
     int score, 
     int userId, 
+    int funticoId,
     string userIp)
 ```
 
@@ -843,24 +844,26 @@ public UniTask<bool> FinishRoomSession_Server(
 - `eventId` - Event/Room identifier
 - `sessionId` - Session identifier
 - `score` - Final game score
-- `userId` - User identifier
+- `userId` - User identifier in SDK system (same as `UserData.UserId`)
+- `funticoId` - User identifier in Funtico platform (same as `UserData.PlatformId`). Used internally to retrieve session events for the user
 - `userIp` - User IP address (for security/validation)
 
 **Returns:** `UniTask<bool>` - `true` if successfully finished, `false` otherwise
 
 **Description:**
-Completes a game session from a dedicated server. You don't need to additionally call FinishRoomSession_Client on clients if you use this method.
+Completes a game session from a dedicated server. You don't need to additionally call FinishRoomSession_Client on clients if you use this method. The server session is closed automatically (fire-and-forget) after submission.
 
 **Usage:**
 ```csharp
 #if SERVER || UNITY_SERVER
-public async void OnPlayerFinishGame(int userId, string userIp, int finalScore)
+public async void OnPlayerFinishGame(int userId, int funticoId, string userIp, int finalScore)
 {
     bool success = await FunticoSDK.Instance.FinishRoomSession_Server(
         eventId,
         sessionId,
         finalScore,
         userId,
+        funticoId,
         userIp
     );
     
@@ -905,7 +908,8 @@ Completes a multiplayer game session from a dedicated server. Submits scores and
 | Property | Type | Description |
 |----------|------|-------------|
 | `Score` | `int` | Player's final score |
-| `UserId` | `int` | User identifier (Funtico user ID) |
+| `UserId` | `int` | User identifier in SDK system (same as `UserData.UserId`) |
+| `FunticoUserId` | `int` | User identifier in Funtico platform (same as `UserData.PlatformId`) |
 | `UserIp` | `string` | User IP address (for validation) |
 | `AdditionalData` | `string` | Optional additional data (JSON string) |
 | `GameEvents` | `List<string>` | Game events (auto-filled from session logs) |
@@ -940,8 +944,7 @@ public async void OnMatchComplete(List<PlayerResult> results)
 **Important Notes:**
 - Only use in server builds (with SERVER or UNITY_SERVER defines)
 - `GameEvents` for each player are automatically filled from events recorded via `RecordEvent_Server` — you don't need to set them manually
-- Automatically closes the server session after successful submission
-- Preferred over the single-user overload for multiplayer matches
+- Automatically closes the server session after submission (fire-and-forget)
 
 ---
 
@@ -1274,8 +1277,8 @@ Creates a new game session on the server for a multiplayer match. Registers all 
 | Property | Type | Description |
 |----------|------|-------------|
 | `JoinKey` | `string` | Unique key used by the player to join the match |
-| `FunticoUserId` | `int` | User ID in Funtico system |
-| `SdkUserId` | `int` | User ID in SDK system |
+| `FunticoUserId` | `int` | User ID in Funtico platform (same as `UserData.PlatformId`) |
+| `SdkUserId` | `int` | User ID in SDK system (same as `UserData.UserId`) |
 | `UserStatus` | `UserGameStatus` | Current game status of the user |
 
 **UserGameStatus Enum:**
@@ -1327,26 +1330,26 @@ Notifies the API that a user has left the current session.
 
 **Signature:**
 ```csharp
-public UniTask<bool> UserLeaveSession_Server(int userId)
+public UniTask<bool> UserLeaveSession_Server(int platformUserId)
 ```
 
 **Parameters:**
-- `userId` - User identifier (Funtico user ID)
+- `platformUserId` - User identifier in Funtico platform (same as `UserData.PlatformId`)
 
 **Returns:** `UniTask<bool>` - `true` if the leave was recorded successfully
 
 **Description:**
-Reports that a player has disconnected or left the current game session. This is used to track player presence and handle disconnection scenarios. The session itself remains active for the remaining players.
+Reports that a player has disconnected or left the current game session. This is used to track player presence and handle leave scenario. The session itself remains active for the remaining players.
 
 **Usage:**
 ```csharp
 #if SERVER || UNITY_SERVER
-public async void OnPlayerDisconnected(int userId)
+public async void OnPlayerDisconnected(int platformUserId)
 {
-    bool success = await FunticoSDK.Instance.UserLeaveSession_Server(userId);
+    bool success = await FunticoSDK.Instance.UserLeaveSession_Server(platformUserId);
     if (success)
     {
-        Debug.Log($"Player {userId} leave recorded");
+        Debug.Log($"Player {platformUserId} leave recorded");
     }
 }
 #endif
@@ -1376,11 +1379,11 @@ Gets all recorded events for a user's session.
 
 **Signature:**
 ```csharp
-public List<string> GetCurrentSessionEvents_Server(int userId)
+public List<string> GetCurrentSessionEvents_Server(int platformUserId)
 ```
 
 **Parameters:**
-- `userId` - User identifier
+- `platformUserId` - User identifier in Funtico platform (same as `UserData.PlatformId`)
 
 **Returns:** `List<string>` - List of event JSON strings
 
@@ -1390,7 +1393,7 @@ Retrieves all events recorded for a specific user's session.
 **Usage:**
 ```csharp
 #if SERVER || UNITY_SERVER
-List<string> events = FunticoSDK.Instance.GetCurrentSessionEvents_Server(userId);
+List<string> events = FunticoSDK.Instance.GetCurrentSessionEvents_Server(platformUserId);
 foreach (var eventJson in events)
 {
     ProcessEvent(eventJson);
@@ -1406,11 +1409,11 @@ Records an event for a user's session on the server.
 
 **Signature:**
 ```csharp
-public void RecordEvent_Server(int userId, string eventInfo)
+public void RecordEvent_Server(int platformUserId, string eventInfo)
 ```
 
 **Parameters:**
-- `userId` - User identifier
+- `platformUserId` - User identifier in Funtico platform (same as `UserData.PlatformId`)
 - `eventInfo` - JSON string containing event data
 
 **Description:**
@@ -1428,7 +1431,7 @@ var eventData = new
 };
 
 FunticoSDK.Instance.RecordEvent_Server(
-    userId, 
+    platformUserId, 
     JsonConvert.SerializeObject(eventData)
 );
 #endif

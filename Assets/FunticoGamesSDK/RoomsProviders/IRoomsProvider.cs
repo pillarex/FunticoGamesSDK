@@ -16,7 +16,7 @@ namespace FunticoGamesSDK.RoomsProviders
         public UniTask<RoomLeaderboardViewModel> GetLeaderboard(string eventId, string sessionId, string matchId);
         public UniTask<RoomTierEnum?> GetTierByEventId(string eventId);
         public UniTask<bool> FinishRoomSession_Client(string eventId, string sessionId, int score);
-        public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId, string userIp);
+        public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId, int funticoUserId, string userIp);
         public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, List<FinishedUser> participants);
     }
 }

@@ -390,7 +390,7 @@ public enum GameTypeEnum
 ```csharp
 public class ServerSessionManager : IServerSessionManager
 {
-    // Dictionary: userId -> session events
+    // Dictionary: platformUserId -> session events
     private readonly Dictionary<int, List<string>> _sessionLogs;
     
     // Current active session
@@ -402,7 +402,7 @@ public class ServerSessionManager : IServerSessionManager
 **Session-Based Design:**
 - One session per match (not per user)
 - Tracks all players within a single session
-- Maintains separate event logs per player (userId → events)
+- Maintains separate event logs per player (platformUserId → events)
 - Session lifecycle: Create → Record Events → Close
 
 **Create Session Flow:**
@@ -429,9 +429,9 @@ CreateSession_Server(serverUrl, sessionId, playersInfo)
 **User Leave Flow:**
 
 ```
-UserLeaveSession_Server(userId)
+UserLeaveSession_Server(platformUserId)
    │
-   └─> HTTP GET /api/Session/server-session-user-leave?id={sessionId}&userId={userId}
+   └─> HTTP GET /api/Session/server-session-user-leave?id={sessionId}&userId={platformUserId}
          └─> Notifies API that user left the match
 ```
 
@@ -692,8 +692,8 @@ public class CreateServerSessionResponse
 public class ServerUserData
 {
     public string JoinKey { get; set; }         // Player's join key
-    public int FunticoUserId { get; set; }      // Funtico user ID
-    public int SdkUserId { get; set; }          // SDK user ID
+    public int FunticoUserId { get; set; }      // Funtico platform user ID (same as UserData.PlatformId)
+    public int SdkUserId { get; set; }          // SDK user ID (same as UserData.UserId)
     public UserGameStatus UserStatus { get; set; } // Current game status
 }
 ```
@@ -722,7 +722,8 @@ public class ServerReconnectModel
 public class FinishedUser
 {
     public int Score { get; set; }                   // Final score
-    public int UserId { get; set; }                  // Funtico user ID
+    public int UserId { get; set; }                  // SDK user ID (same as UserData.UserId)
+    public int FunticoUserId { get; set; }           // Funtico platform user ID (same as UserData.PlatformId)
     public string UserIp { get; set; }               // User IP address
     public string AdditionalData { get; set; }       // Optional extra data
     public List<string> GameEvents { get; set; }     // Auto-filled from session logs

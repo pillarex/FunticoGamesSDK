@@ -34,9 +34,9 @@ namespace FunticoGamesSDK.SessionsManagement
 			return success;
 		}
 
-		public async UniTask<bool> UserLeaveSession_Server(int userId)
+		public async UniTask<bool> UserLeaveSession_Server(int platformUserId)
 		{
-			var url = APIConstants.WithQuery(APIConstants.SERVER_USER_LEAVE_SESSION, $"id={_currentSessionId}", $"userId={userId}");
+			var url = APIConstants.WithQuery(APIConstants.SERVER_USER_LEAVE_SESSION, $"id={_currentSessionId}", $"userId={platformUserId}");
 			var success = await HTTPClient.Get_Short(url);
 			return success;
 		}
@@ -55,19 +55,19 @@ namespace FunticoGamesSDK.SessionsManagement
 			return success;
 		}
 
-		public List<string> GetCurrentSessionEvents_Server(int userId) => _sessionLogs.GetValueOrDefault(userId);
+		public List<string> GetCurrentSessionEvents_Server(int platformUserId) => _sessionLogs.GetValueOrDefault(platformUserId);
 
-		public void RecordEvent_Server(int userId, string eventInfo)
+		public void RecordEvent_Server(int platformUserId, string eventInfo)
 		{
-			if (!_sessionLogs.TryGetValue(userId, out var logs))
+			if (!_sessionLogs.TryGetValue(platformUserId, out var logs))
 			{
-				Logger.LogError($"Can't log event. Session data for user is with id = {userId} is not found");
+				Logger.LogError($"Can't log event. Session data for user is with id = {platformUserId} is not found");
 				return;
 			}
 
 			if (logs == null)
 			{
-				Logger.LogError($"Can't log event. Session data for user is with id = {userId} is null");
+				Logger.LogError($"Can't log event. Session data for user is with id = {platformUserId} is null");
 				return;
 			}
 

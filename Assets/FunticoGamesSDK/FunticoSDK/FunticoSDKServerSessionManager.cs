@@ -18,8 +18,8 @@ namespace FunticoGamesSDK
 		public UniTask<bool> CreateSession_Server(string serverUrl, string sessionId, List<ServerUserData> playersInfo) =>
 			_serverSessionManager.CreateSession_Server(serverUrl, sessionId, playersInfo);
 
-		public UniTask<bool> UserLeaveSession_Server(int userId) =>
-			_serverSessionManager.UserLeaveSession_Server(userId);
+		public UniTask<bool> UserLeaveSession_Server(int platformUserId) =>
+			_serverSessionManager.UserLeaveSession_Server(platformUserId);
 
 		public UniTask<bool> CloseCurrentSession_Server()
 		{
@@ -27,10 +27,10 @@ namespace FunticoGamesSDK
 			return UniTask.FromResult(false);
 		}
 
-		public List<string> GetCurrentSessionEvents_Server(int userId) =>
-			_serverSessionManager.GetCurrentSessionEvents_Server(userId);
+		public List<string> GetCurrentSessionEvents_Server(int platformUserId) =>
+			_serverSessionManager.GetCurrentSessionEvents_Server(platformUserId);
 
-		public void RecordEvent_Server(int userId, string eventInfo) =>
-			_serverSessionManager.RecordEvent_Server(userId, eventInfo);
+		public void RecordEvent_Server(int platformUserId, string eventInfo) =>
+			_serverSessionManager.RecordEvent_Server(platformUserId, eventInfo);
 	}
 }
