@@ -68,6 +68,7 @@ namespace FunticoGamesSDK
         public static readonly string Get_Room_Settings_Server = API + "/Rooms/game-settings-server";
         public static readonly string Post_Room_Started_Server = API + "/Rooms/start-room-mp";
         public static readonly string Post_Score_Match_Server = API + "/Rooms/end-room-mp";
+        public static readonly string Post_Score_List_Match_Server = API + "/Rooms/end-room-all-users";
         public static readonly string Get_Room_Leaders = API + "/Rooms/leaders";
         public static readonly string Get_Rooms_History = API + "/Rooms/history";
         public static readonly string Get_Room_Session_History = API + "/Rooms/get-history";

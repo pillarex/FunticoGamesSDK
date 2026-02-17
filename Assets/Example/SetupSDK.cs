@@ -34,6 +34,9 @@ public class SetupSDK : MonoBehaviour
 #if USE_FUNTICO_MATCHMAKING
         SubscribeToMatchmakingEvents();
 #endif
+#if SERVER || UNITY_SERVER
+        return;
+#endif
         await CheckReconnection();
         await LoadGameData();
     }

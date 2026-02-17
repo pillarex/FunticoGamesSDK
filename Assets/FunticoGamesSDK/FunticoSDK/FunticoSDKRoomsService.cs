@@ -46,6 +46,6 @@ namespace FunticoGamesSDK
 			_roomsProvider.FinishRoomSession_Server(eventId, sessionId, score, userId, funticoId, userIp);
 
 		public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, List<FinishedUser> participants) => 
-			_instance.FinishRoomSession_Server(eventId, sessionId, participants);
+			_roomsProvider.FinishRoomSession_Server(eventId, sessionId, participants);
 	}
 }

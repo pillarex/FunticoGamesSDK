@@ -86,7 +86,7 @@ namespace FunticoGamesSDK.RoomsProviders
 			{
 				model.Add(new TierViewModel
 				{
-					Tier = (RoomTierEnum)tier.Tier,
+					Tier = (RoomTierEnum) tier.Tier,
 					TierName = tier.Name,
 					EntryFeeLowerBound = tier.LowerBoundEntryFee,
 					EntryFeeUpperBound = tier.UpperBoundEntryFee,
@@ -107,7 +107,7 @@ namespace FunticoGamesSDK.RoomsProviders
 			}
 
 			var tier = LastRoomsResponse?.FirstOrDefault(config => config.Id == eventId)?.Details.Tier;
-			return tier == null ? null : (RoomTierEnum)tier.Value;
+			return tier == null ? null : (RoomTierEnum) tier.Value;
 		}
 
 		public async UniTask<bool> FinishRoomSession_Client(string eventId, string sessionId, int score)
@@ -137,15 +137,15 @@ namespace FunticoGamesSDK.RoomsProviders
 			return success;
 		}
 
-		public async UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId, int funticoUserId,
-			string userIp)
+		public async UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId,
+			int funticoUserId, string userIp)
 		{
 			var gameData = new RoomSaveScoreRequest()
 			{
 				Score = score,
 				UserId = userId,
 				Ip = userIp,
-				GameEvents = _serverSessionManager.GetCurrentSessionEvents_Server(funticoUserId) 
+				GameEvents = _serverSessionManager.GetCurrentSessionEvents_Server(funticoUserId)
 			};
 			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match, $"eventId={eventId}",
 				$"gameSessionIrOrMatchId={sessionId}");
@@ -156,10 +156,20 @@ namespace FunticoGamesSDK.RoomsProviders
 
 		public async UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, List<FinishedUser> participants)
 		{
-			participants.ForEach(player => player.GameEvents = _serverSessionManager.GetCurrentSessionEvents_Server(player.UserId));
-			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match_Server, $"eventId={eventId}",
+			var data = new RoomEndRequestAllUsers()
+			{
+				Scores = participants.Select(participant => new UserScore()
+				{
+					GameSessionIdOrMatchId = sessionId,
+					IsSuspectedCheater = false,
+					Score = participant.Score,
+					UserId = participant.FunticoUserId,
+					UserIpEndSession = participant.UserIp
+				}).ToList()
+			};
+			var url = APIConstants.WithQuery(APIConstants.Post_Score_List_Match_Server, $"eventId={eventId}",
 				$"gameSessionIrOrMatchId={sessionId}");
-			var success = await HTTPClient.Post_Short(url, participants);
+			var success = await HTTPClient.Post_Short(url, data);
 			_serverSessionManager.CloseCurrentSession_Server().Forget();
 			return success;
 		}
@@ -177,7 +187,7 @@ namespace FunticoGamesSDK.RoomsProviders
 			{
 				TicketType.Free => true,
 				TicketType.Currency => ticket.CurrencyAmount != null &&
-				                       UserDataService.CanAffordFromCache(feeType, (int)ticket.CurrencyAmount),
+				                       UserDataService.CanAffordFromCache(feeType, (int) ticket.CurrencyAmount),
 				TicketType.Item => true, // TODO
 				_ => true
 			};
