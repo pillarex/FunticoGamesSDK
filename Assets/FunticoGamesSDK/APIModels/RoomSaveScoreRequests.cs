@@ -21,7 +21,7 @@ namespace FunticoGamesSDK.APIModels
 
 	public class FinishedUser
 	{
-		public int Score { get; set; }
+		public int? Score { get; set; }
 		public int UserId { get; set; }
 		public int FunticoUserId { get; set; }
 		public string UserIp { get; set; }
@@ -51,5 +51,10 @@ namespace FunticoGamesSDK.APIModels
 
 		[JsonProperty("user_id")]
 		public long UserId;
+	}
+
+	public class NumberWarsUserAdditionalData 
+	{
+		public float TicoCollectedPercent { get; set; }
 	}
 }
