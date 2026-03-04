@@ -8,6 +8,7 @@ using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
 #if USE_FUNTICO_MATCHMAKING
 using FunticoGamesSDK.APIModels.Matchmaking;
+using FunticoGamesSDK.Matchmaking.Models;
 #endif
 using FunticoGamesSDK.APIModels.UserData;
 using Newtonsoft.Json;
@@ -22,7 +23,11 @@ public class SetupSDK : MonoBehaviour
     private bool _finishing;
 #if USE_FUNTICO_MATCHMAKING
     private bool _inQueue;
+    private bool _pendingAccept;
+    private Guid _pendingMatchId;
+    private int _acceptTimeoutSeconds;
     private string _matchmakingStatus = "";
+    private string _matchmakingEventId = "";
     private MatchmakingRegion _matchmakingRegion = MatchmakingRegion.Europe;
     private readonly string[] _regionNames = Enum.GetNames(typeof(MatchmakingRegion));
 #endif
@@ -50,11 +55,43 @@ public class SetupSDK : MonoBehaviour
             Debug.Log($"Matchmaking Status: {status}");
         };
 
+        FunticoMatchmaking.Instance.OnAcceptMatch += acceptData =>
+        {
+            _pendingAccept = true;
+            _pendingMatchId = acceptData.MatchId;
+            _acceptTimeoutSeconds = acceptData.TimeoutSeconds;
+            _matchmakingStatus = $"Match found! Accept within {acceptData.TimeoutSeconds}s";
+            Debug.Log($"Accept Match: {acceptData.MatchId}, Timeout: {acceptData.TimeoutSeconds}s");
+        };
+
         FunticoMatchmaking.Instance.OnMatchFound += result =>
         {
             _inQueue = false;
+            _pendingAccept = false;
             _matchmakingStatus = $"Match Found! ID: {result.MatchId}";
             Debug.Log($"Match Found: {result.MatchId}, Server: {result.ServerUrl}");
+        };
+
+        FunticoMatchmaking.Instance.OnMatchCancelled += reason =>
+        {
+            _pendingAccept = false;
+            _matchmakingStatus = $"Match Cancelled: {reason}";
+            Debug.Log($"Match Cancelled: {reason}");
+        };
+
+        FunticoMatchmaking.Instance.OnMatchError += error =>
+        {
+            _inQueue = false;
+            _pendingAccept = false;
+            _matchmakingStatus = $"Match Error: {error}";
+            Debug.LogError($"Match Error: {error}");
+        };
+
+        FunticoMatchmaking.Instance.OnConnectionClosed += () =>
+        {
+            _inQueue = false;
+            _pendingAccept = false;
+            Debug.Log("Matchmaking connection closed");
         };
     }
 #endif
@@ -295,6 +332,10 @@ public class SetupSDK : MonoBehaviour
     {
         availableRooms = rooms ?? new List<RoomViewModel>();
         Debug.Log($"Loaded {availableRooms.Count} rooms");
+#if USE_FUNTICO_MATCHMAKING
+        if (string.IsNullOrEmpty(_matchmakingEventId) && availableRooms.Count > 0)
+            _matchmakingEventId = availableRooms[0].Guid;
+#endif
     }
 
     private void ShowError(string message)
@@ -381,15 +422,27 @@ public class SetupSDK : MonoBehaviour
     }
 
 #if USE_FUNTICO_MATCHMAKING
+    private bool _guiPendingAccept;
+    private bool _guiInQueue;
+
     private void DrawMatchmakingControls()
     {
-        GUILayout.BeginArea(new Rect(Screen.width - 310, Screen.height - 260, 300, 250));
+        if (Event.current.type == EventType.Layout)
+        {
+            _guiPendingAccept = _pendingAccept;
+            _guiInQueue = _inQueue;
+        }
+
+        GUILayout.BeginArea(new Rect(Screen.width - 310, Screen.height - 360, 300, 350));
         GUILayout.BeginVertical(GUI.skin.box);
         
         GUILayout.Label("Matchmaking", GUI.skin.box, GUILayout.Width(280), GUILayout.Height(30));
         GUILayout.Space(5);
+
+        GUILayout.Label("Event ID:", GUILayout.Height(20));
+        _matchmakingEventId = GUILayout.TextField(_matchmakingEventId, GUILayout.Height(22));
+        GUILayout.Space(5);
         
-        // Region selection
         GUILayout.Label("Region:", GUILayout.Height(20));
         var selectedIndex = (int)_matchmakingRegion;
         var newIndex = GUILayout.SelectionGrid(selectedIndex, _regionNames, 3, GUILayout.Height(50));
@@ -400,29 +453,29 @@ public class SetupSDK : MonoBehaviour
         
         GUILayout.Space(5);
         
-        // Status
-        if (!string.IsNullOrEmpty(_matchmakingStatus))
-        {
-            GUILayout.Label($"Status: {_matchmakingStatus}", GUILayout.Height(20));
-        }
+        GUILayout.Label(string.IsNullOrEmpty(_matchmakingStatus) ? " " : $"Status: {_matchmakingStatus}", GUILayout.Height(20));
         
         GUILayout.Space(5);
-        
-        // Join/Leave Queue buttons
-        if (_inQueue)
+
+        GUILayout.Label(_guiPendingAccept ? $"Accept within {_acceptTimeoutSeconds}s" : " ", GUILayout.Height(20));
+
+        GUILayout.BeginHorizontal();
+        if (_guiPendingAccept)
         {
-            if (GUILayout.Button("Leave Queue", GUILayout.Height(40)))
-            {
-                OnLeaveQueueClick();
-            }
+            if (GUILayout.Button("Accept", GUILayout.Height(40)))
+                OnAcceptMatchClick();
+            if (GUILayout.Button("Decline", GUILayout.Height(40)))
+                OnDeclineMatchClick();
         }
         else
         {
-            if (GUILayout.Button("Join Queue", GUILayout.Height(40)))
+            if (GUILayout.Button(_guiInQueue ? "Leave Queue" : "Join Queue", GUILayout.Height(40)))
             {
-                OnJoinQueueClick();
+                if (_guiInQueue) OnLeaveQueueClick();
+                else OnJoinQueueClick();
             }
         }
+        GUILayout.EndHorizontal();
         
         GUILayout.EndVertical();
         GUILayout.EndArea();
@@ -432,16 +485,31 @@ public class SetupSDK : MonoBehaviour
     {
         _inQueue = true;
         _matchmakingStatus = "Joining queue...";
-        await FunticoMatchmaking.Instance.JoinQueue(_matchmakingRegion, 2);
+        await FunticoMatchmaking.Instance.JoinQueue(_matchmakingEventId, _matchmakingRegion, 2);
         if (_inQueue) _matchmakingStatus = "In queue, waiting for match...";
     }
 
-    private async void OnLeaveQueueClick()
+    private void OnLeaveQueueClick()
     {
         _matchmakingStatus = "Leaving queue...";
-        await FunticoMatchmaking.Instance.LeaveQueue();
+        FunticoMatchmaking.Instance.LeaveQueue();
         _inQueue = false;
+        _pendingAccept = false;
         _matchmakingStatus = "Left queue";
+    }
+
+    private void OnAcceptMatchClick()
+    {
+        _pendingAccept = false;
+        _matchmakingStatus = "Accepting match...";
+        FunticoMatchmaking.Instance.AcceptMatch();
+    }
+
+    private void OnDeclineMatchClick()
+    {
+        _pendingAccept = false;
+        _matchmakingStatus = "Declining match...";
+        FunticoMatchmaking.Instance.DeclineMatch();
     }
 #endif
 }

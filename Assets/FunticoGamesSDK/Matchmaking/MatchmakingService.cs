@@ -13,14 +13,20 @@ namespace FunticoGamesSDK.MatchmakingProviders
 	{
 		public event Action<string> OnMatchStatus;
 		public event Action<MatchResult> OnMatchFound;
+		public event Action<AcceptMatchServer> OnAcceptMatch;
+		public event Action<string> OnMatchCancelled;
+		public event Action<string> OnMatchError;
+		public event Action OnConnectionStarted;
+		public event Action OnConnectionClosed;
 
 		private readonly IAuthDataProvider _authDataProvider;
 		private readonly string _publicGameKey;
 		private readonly string _clientSessionId;
-		
+
 		private SignalR _connection;
 		private UniTaskCompletionSource<bool> _connectTcs;
 		private bool _isConnected;
+		private string _matchIdToAccept;
 
 		public MatchmakingService(IAuthDataProvider authDataProvider, string publicGameKey, string sessionId)
 		{
@@ -29,12 +35,12 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			_clientSessionId = sessionId;
 		}
 
-		public async UniTask JoinQueue(MatchmakingRegion region, int size)
+		public async UniTask JoinQueue(string tournamentId, MatchmakingRegion region, int size)
 		{
 			try
 			{
 				await CreateConnection();
-				_connection.Invoke("FindMatch", region.ToShortString(), size.ToString());
+				_connection.Invoke("FindMatch", region.ToShortString(), size.ToString(), tournamentId);
 			}
 			catch (Exception ex)
 			{
@@ -43,7 +49,44 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			}
 		}
 
-		public async UniTask LeaveQueue()
+		public void AcceptMatch()
+		{
+			if (_connection == null || !_isConnected)
+				return;
+
+			try
+			{
+				var matchId = _matchIdToAccept;
+				_connection.Invoke("AcceptMatch", matchId);
+			}
+			catch (Exception ex)
+			{
+				Logger.LogError($"MatchmakingService AcceptMatch failed: {ex.Message}");
+				DisposeConnectionWithDelay().Forget();
+			}
+		}
+
+		public void DeclineMatch()
+		{
+			if (_connection == null || !_isConnected)
+				return;
+
+			try
+			{
+				var matchId = _matchIdToAccept;
+				_connection.Invoke("DeclineMatch", matchId);
+			}
+			catch (Exception ex)
+			{
+				Logger.LogError($"MatchmakingService DeclineMatch failed: {ex.Message}");
+			}
+			finally
+			{
+				DisposeConnectionWithDelay().Forget();
+			}
+		}
+
+		public void LeaveQueue()
 		{
 			if (_connection == null || !_isConnected)
 				return;
@@ -51,7 +94,6 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			try
 			{
 				_connection.Invoke("LeaveQueue");
-				await UniTask.Delay(1000); // Give time for the message to be sent
 			}
 			catch (Exception ex)
 			{
@@ -59,7 +101,7 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			}
 			finally
 			{
-				DisposeConnection();
+				DisposeConnectionWithDelay().Forget();
 			}
 		}
 
@@ -78,28 +120,15 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			_connection = new SignalR();
 			_connectTcs = new UniTaskCompletionSource<bool>();
 
-			_connection.ConnectionStarted += OnConnectionStarted;
-			_connection.ConnectionClosed += OnConnectionClosed;
+			_connection.ConnectionStarted += ConnectionStarted;
+			_connection.ConnectionClosed += ConnectionClosed;
 
 			_connection.Init(hubUrl, userToken, headers);
-			
-			_connection.On<string>("MatchStatus", status =>
-			{
-				Logger.Log($"MatchStatus: {status}");
-				OnMatchStatus?.Invoke(status);
-			});
 
-			_connection.On<string>("MatchFound", async result =>
-			{
-				var resultParsed = JsonConvert.DeserializeObject<MatchResult>(result);
-				Logger.Log($"MatchFound: MatchId={resultParsed.MatchId} ServerUrl={resultParsed.ServerUrl} Opponents={string.Join(", ", resultParsed.Opponents.Select(user => user.UserName))}");
-				OnMatchFound?.Invoke(resultParsed);
-				await UniTask.Delay(1000);
-				DisposeConnection();
-			});
+			SubscribeToServerEvents();
 
 			_connection.Connect();
-			
+
 			// Wait for connection with timeout
 			var cts = new System.Threading.CancellationTokenSource(10000);
 			try
@@ -110,42 +139,89 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			{
 				throw new TimeoutException("Connection timeout");
 			}
-			
+
 			Logger.Log("MatchmakingService Connected");
 		}
 
-		private void OnConnectionStarted(object sender, ConnectionEventArgs e)
+		private void SubscribeToServerEvents()
 		{
-			_isConnected = true;
-			Logger.Log($"MatchmakingService Connected: {e.ConnectionId}");
-			_connectTcs?.TrySetResult(true);
+			_connection.On<string>("MatchStatus", status =>
+			{
+				Logger.Log($"MatchStatus: {status}");
+				OnMatchStatus?.Invoke(status);
+			});
+
+			_connection.On<string>("MatchCancelled", reason =>
+			{
+				Logger.Log($"MatchCancelled: {reason}");
+				OnMatchCancelled?.Invoke(reason);
+			});
+
+
+			_connection.On<string>("MatchError", errorMsg => {
+				Logger.Log($"MatchError: {errorMsg}");
+				OnMatchError?.Invoke(errorMsg);
+			});
+
+			_connection.On<string>("MatchFound", result =>
+			{
+				var resultParsed = JsonConvert.DeserializeObject<MatchResult>(result);
+				Logger.Log(
+					$"MatchFound: MatchId={resultParsed.MatchId} ServerUrl={resultParsed.ServerUrl} Opponents={string.Join(", ", resultParsed.Opponents.Select(user => user.UserName))}");
+				OnMatchFound?.Invoke(resultParsed);
+				DisposeConnectionWithDelay().Forget();
+			});
+
+			_connection.On<string>("AcceptMatch", result =>
+			{
+				var resultParsed = JsonConvert.DeserializeObject<AcceptMatchServer>(result);
+				_matchIdToAccept = resultParsed.MatchId.ToString();
+				Logger.Log(
+					$"AcceptMatchServer: MatchId={_matchIdToAccept} TimeoutSec={resultParsed.TimeoutSeconds}");
+				OnAcceptMatch?.Invoke(resultParsed);
+			});
 		}
 
-		private void OnConnectionClosed(object sender, ConnectionEventArgs e)
+		private void ConnectionStarted(object sender, ConnectionEventArgs e)
+		{
+			_isConnected = true;
+			_connectTcs?.TrySetResult(true);
+			OnConnectionStarted?.Invoke();
+			Logger.Log($"MatchmakingService Connected: {e.ConnectionId}");
+		}
+
+		private void ConnectionClosed(object sender, ConnectionEventArgs e)
 		{
 			_isConnected = false;
+			OnConnectionClosed?.Invoke();
 			Logger.Log($"MatchmakingService Closed: {e.ConnectionId}");
+		}
+
+		private async UniTask DisposeConnectionWithDelay(int delay = 1000)
+		{
+			await UniTask.Delay(delay);
+			DisposeConnection();
 		}
 
 		private void DisposeConnection()
 		{
 			if (_connection != null)
 			{
-				_connection.ConnectionStarted -= OnConnectionStarted;
-				_connection.ConnectionClosed -= OnConnectionClosed;
-				
 				try
 				{
 					_connection.Stop();
+					_connection.ConnectionStarted -= ConnectionStarted;
+					_connection.ConnectionClosed -= ConnectionClosed;
 					Logger.Log($"MatchmakingService Connection closed");
 				}
 				catch (Exception ex)
 				{
 					Logger.LogError($"MatchmakingService DisposeConnection failed: {ex.Message}");
 				}
+
 				_connection = null;
 			}
-			
+
 			_isConnected = false;
 			_connectTcs = null;
 		}

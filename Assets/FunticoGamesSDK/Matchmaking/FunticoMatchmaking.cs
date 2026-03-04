@@ -3,7 +3,6 @@ using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels.Matchmaking;
 using FunticoGamesSDK.MatchmakingProviders;
 using System.Collections.Generic;
-using FunticoGamesSDK.APIModels.ServerSessionsModels;
 using FunticoGamesSDK.Logging;
 using FunticoGamesSDK.Matchmaking.Models;
 using Newtonsoft.Json;
@@ -33,15 +32,49 @@ namespace FunticoGamesSDK
 			remove => _matchmakingService.OnMatchFound -= value;
 		}
 
+		public event Action<AcceptMatchServer> OnAcceptMatch
+		{
+			add => _matchmakingService.OnAcceptMatch += value;
+			remove => _matchmakingService.OnAcceptMatch -= value;
+		}
+
+		public event Action<string> OnMatchCancelled
+		{
+			add => _matchmakingService.OnMatchCancelled += value;
+			remove => _matchmakingService.OnMatchCancelled -= value;
+		}
+
+		public event Action<string> OnMatchError
+		{
+			add => _matchmakingService.OnMatchError += value;
+			remove => _matchmakingService.OnMatchError -= value;
+		}
+
+		public event Action OnConnectionStarted
+		{
+			add => _matchmakingService.OnConnectionStarted += value;
+			remove => _matchmakingService.OnConnectionStarted -= value;
+		}
+
+		public event Action OnConnectionClosed
+		{
+			add => _matchmakingService.OnConnectionClosed += value;
+			remove => _matchmakingService.OnConnectionClosed -= value;
+		}
+
 		private FunticoMatchmaking()
 		{
 			var sdk = FunticoSDK.Instance;
 			_matchmakingService = new MatchmakingService(sdk, sdk.PublicGameKey, sdk.SessionId);
 		}
 
-		public UniTask JoinQueue(MatchmakingRegion region, int size) => _matchmakingService.JoinQueue(region, size);
+		public UniTask JoinQueue(string eventId, MatchmakingRegion region, int size) => _matchmakingService.JoinQueue(eventId, region, size);
 
-		public UniTask LeaveQueue() => _matchmakingService.LeaveQueue();
+		public void AcceptMatch() => _matchmakingService.AcceptMatch();
+
+		public void DeclineMatch() => _matchmakingService.DeclineMatch();
+
+		public void LeaveQueue() => _matchmakingService.LeaveQueue();
 			
 		public ServerSetupData GetServerSetupData()
 		{
