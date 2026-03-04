@@ -1,6 +1,6 @@
 {
   "name": "com.funticogames.sdk",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "displayName": "Funtico Games SDK",
   "description": "SDK for integration with Funtico Games platform",
   "unity": "2021.3",
