@@ -91,6 +91,7 @@ public class SetupSDK : MonoBehaviour
         {
             _inQueue = false;
             _pendingAccept = false;
+            _matchmakingStatus = string.Empty;
             Debug.Log("Matchmaking connection closed");
         };
     }

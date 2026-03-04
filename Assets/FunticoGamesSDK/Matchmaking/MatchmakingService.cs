@@ -205,25 +205,29 @@ namespace FunticoGamesSDK.MatchmakingProviders
 
 		private void DisposeConnection()
 		{
-			if (_connection != null)
-			{
-				try
-				{
-					_connection.Stop();
-					_connection.ConnectionStarted -= ConnectionStarted;
-					_connection.ConnectionClosed -= ConnectionClosed;
-					Logger.Log($"MatchmakingService Connection closed");
-				}
-				catch (Exception ex)
-				{
-					Logger.LogError($"MatchmakingService DisposeConnection failed: {ex.Message}");
-				}
-
-				_connection = null;
-			}
-
+			var wasConnected = _isConnected;
 			_isConnected = false;
 			_connectTcs = null;
+
+			if (_connection == null) 
+				return;
+
+			try
+			{
+				_connection.ConnectionStarted -= ConnectionStarted;
+				_connection.ConnectionClosed -= ConnectionClosed;
+				_connection.Stop();
+				Logger.Log($"MatchmakingService Connection closed");
+			}
+			catch (Exception ex)
+			{
+				Logger.LogError($"MatchmakingService DisposeConnection failed: {ex.Message}");
+			}
+
+			_connection = null;
+
+			if (wasConnected)
+				OnConnectionClosed?.Invoke();
 		}
 
 		public void Dispose()
