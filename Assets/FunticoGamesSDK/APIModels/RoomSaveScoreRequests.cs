@@ -41,7 +41,7 @@ namespace FunticoGamesSDK.APIModels
 		public string GameSessionIdOrMatchId;
 
 		[JsonProperty("score")]
-		public int Score;
+		public int? Score;
 
 		[JsonProperty("is_suspected_cheater")]
 		public bool IsSuspectedCheater;
