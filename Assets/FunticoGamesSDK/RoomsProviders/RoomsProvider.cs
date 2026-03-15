@@ -99,11 +99,11 @@ namespace FunticoGamesSDK.RoomsProviders
 			return model;
 		}
 
-		public async UniTask<RoomTierEnum?> GetTierByEventId(string eventId)
+		public async UniTask<RoomTierEnum?> GetTierByEventId(string eventId, RoomType roomType)
 		{
 			if (LastRoomsResponse == null)
 			{
-				await UpdateRoomsList(null);
+				await UpdateRoomsList(null, roomType);
 			}
 
 			var tier = LastRoomsResponse?.FirstOrDefault(config => config.Id == eventId)?.Details.Tier;
@@ -177,8 +177,6 @@ namespace FunticoGamesSDK.RoomsProviders
 		#endregion
 
 		#region Private
-
-		protected override int GetRoomType() => 0;
 
 		private bool CanAfford(Ticket ticket, out EntryFeeType feeType)
 		{

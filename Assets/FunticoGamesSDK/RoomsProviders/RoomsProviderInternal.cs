@@ -94,10 +94,10 @@ namespace FunticoGamesSDK.RoomsProviders
 
         public async UniTask<string> GetRoomSettings(string guid) => await GetRoomSettingsInternal(guid);
 
-        public async UniTask<List<RoomViewModel>> GetRooms(RoomTierEnum? tier = null)
+        public async UniTask<List<RoomViewModel>> GetRooms(RoomTierEnum? tier = null, RoomType roomType = RoomType.singleplayer)
         {
             await UserDataService.GetVouchers(false);
-            await UpdateRoomsList(tier);
+            await UpdateRoomsList(tier, roomType);
             var interestedRooms = LastRoomsResponse.Where(room => tier == null || room.Details.Tier == (int) tier);
             var roomViewModelsCreationTasks = interestedRooms.Select(CreateRoomViewModel);
             var roomViewModels = (await UniTask.WhenAll(roomViewModelsCreationTasks)).ToList();
@@ -183,9 +183,7 @@ namespace FunticoGamesSDK.RoomsProviders
 
         #endregion
     
-        protected async UniTask UpdateRoomsList(RoomTierEnum? tier) => LastRoomsResponse = await GetRoomsFromAPI(tier, GetRoomType());
-
-        protected abstract int GetRoomType();
+        protected async UniTask UpdateRoomsList(RoomTierEnum? tier, RoomType roomType) => LastRoomsResponse = await GetRoomsFromAPI(tier, (int) roomType);
 
         protected async UniTask<bool> IsRoomPrePaid(string id)
         {

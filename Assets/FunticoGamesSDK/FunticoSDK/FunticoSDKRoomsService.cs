@@ -27,7 +27,8 @@ namespace FunticoGamesSDK
 
 		public UniTask<string> GetRoomSettings(string guid) => _roomsProvider.GetRoomSettings(guid);
 
-		public UniTask<List<RoomViewModel>> GetRooms(RoomTierEnum? tier) => _roomsProvider.GetRooms(tier);
+		public UniTask<List<RoomViewModel>> GetRooms(RoomTierEnum? tier, RoomType roomType = RoomType.singleplayer) =>
+			_roomsProvider.GetRooms(tier, roomType);
 
 		public UniTask<RoomData> JoinRoom(string roomGuid) => _roomsProvider.JoinRoom(roomGuid);
 
@@ -37,7 +38,8 @@ namespace FunticoGamesSDK
 		public UniTask<RoomLeaderboardViewModel> GetLeaderboard(string eventId, string sessionId, string matchId) =>
 			_roomsProvider.GetLeaderboard(eventId, sessionId, matchId);
 
-		public UniTask<RoomTierEnum?> GetTierByEventId(string eventId) => _roomsProvider.GetTierByEventId(eventId);
+		public UniTask<RoomTierEnum?> GetTierByEventId(string eventId, RoomType roomType) =>
+			_roomsProvider.GetTierByEventId(eventId, roomType);
 
 		public UniTask<bool> FinishRoomSession_Client(string eventId, string sessionId, int score) =>
 			_roomsProvider.FinishRoomSession_Client(eventId, sessionId, score);
