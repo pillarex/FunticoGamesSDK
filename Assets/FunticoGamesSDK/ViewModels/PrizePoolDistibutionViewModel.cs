@@ -6,6 +6,7 @@ namespace FunticoGamesSDK.ViewModels
     {
         public List<PrizePlaceViewModel> PrizePlaces { get; set; }
         public long TotalTicoAccumulated { get; set; }
+        public long TicoSharedViaPlaces { get; set; }
         public int TotalPlayers { get; set; }
         public long TicoPerPlayer => TotalTicoAccumulated / TotalPlayers;
         public float PlatformFeePercentage { get; set; }

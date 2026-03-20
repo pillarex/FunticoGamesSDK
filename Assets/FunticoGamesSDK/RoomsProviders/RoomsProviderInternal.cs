@@ -40,7 +40,7 @@ namespace FunticoGamesSDK.RoomsProviders
             var model = new PrizePoolDistibutionViewModel
             {
                 PrizePlaces = new List<PrizePlaceViewModel>(),
-                TotalPlayers = roomData.Size ?? 8,
+                TotalPlayers = roomData.Size ?? 1,
                 PlatformFeePercentage = roomData.PrizePool.PlatformFee.Value ?? 0,
                 PlatformFee = roomData.Computed.PlatformFee,
                 TotalTicoAccumulated = roomData.Computed.Stake
@@ -50,6 +50,7 @@ namespace FunticoGamesSDK.RoomsProviders
             {
                 // Calculate prize value
                 var ticoPrize = PrizeUtils.CalculatePrize(prizeDistribution.Prizes, roomData.Computed.DepositStake);
+                model.TicoSharedViaPlaces += ticoPrize;
 
                 var rewardFeeRatio = 0.0f;
                 if (roomData.Ticket.CurrencyAmount.HasValue && ticoPrize > 0)
@@ -174,7 +175,11 @@ namespace FunticoGamesSDK.RoomsProviders
 
         private async UniTask<RoomConfig> GetRoomConfig(string roomId)
         {
+#if UNITY_SERVER || SERVER
+            var link = $"{APIConstants.Get_Room_Public}?id={roomId}";
+#else
             var link = $"{APIConstants.Get_Room}?roomId={roomId}";
+#endif
             (bool success, RoomConfig response) = await HTTPClient.Get<RoomConfig>(link);
             if (!success)
                 Logger.LogError("Failed to get events");

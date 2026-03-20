@@ -58,6 +58,7 @@ namespace FunticoGamesSDK
 
         #region Rooms
 
+        public static readonly string Get_Room_Public = API + "/Rooms/get-room-public";
         public static readonly string Get_Room = API + "/Rooms/get-room";
         public static readonly string Get_Rooms = API + "/Rooms/get-rooms";
         public static readonly string Post_Join_Room = API + "/Rooms/join-room";
