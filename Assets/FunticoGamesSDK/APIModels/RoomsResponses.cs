@@ -309,6 +309,20 @@ namespace FunticoGamesSDK.APIModels
 
         [JsonProperty("platform_fee")]
         public PlatformFee PlatformFee { get; set; }
+
+        [JsonProperty("game_managed")] public GameManaged? GameManaged { get; set; } = null;
+    }
+    
+    public class GameManaged
+    {
+        [JsonProperty("value")]
+        public long Value { get; set; }
+        [JsonProperty("type")]
+        public int Type { get; set; }
+        [JsonProperty("label")]
+        public string Label { get; set; }
+        [JsonProperty("currency")]
+        public int Currency { get; set; }
     }
     
     public class XPPoints
