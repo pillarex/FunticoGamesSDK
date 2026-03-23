@@ -8,6 +8,7 @@ namespace FunticoGamesSDK.APIModels.Matchmaking
 	{
 		public string RoomSettings { get; set; }
 		public string MatchId { get; set; }
+		public string EventId { get; set; }
 		public Dictionary<string, OpponentData> Players { get; set; }
 	}
 }

@@ -84,11 +84,13 @@ namespace FunticoGamesSDK
 #endif
 			var userKeys = Environment.GetEnvironmentVariable("User_Keys");
 			var matchId = Environment.GetEnvironmentVariable("MatchId");
+			var eventId = Environment.GetEnvironmentVariable("EventId");
 			if (userKeys == null)
 			{
 				return new ServerSetupData()
 				{
-					MatchId = matchId
+					MatchId = matchId,
+					EventId = eventId,
 				};
 			}
 
@@ -96,7 +98,8 @@ namespace FunticoGamesSDK
 			return new ServerSetupData()
 			{
 				MatchId = matchId,
-				Players = userKeysParsed
+				EventId = eventId,
+				Players = userKeysParsed,
 			};
 		}
 
