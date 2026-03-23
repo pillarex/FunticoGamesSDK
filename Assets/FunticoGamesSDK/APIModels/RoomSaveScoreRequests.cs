@@ -9,6 +9,7 @@ namespace FunticoGamesSDK.APIModels
 		public long? Score { get; set; }
 		public int UserId { get; set; }
 		public string? Ip { get; set; }
+		public long? GameManagedAward { get; set; }
 		public List<string> GameEvents { get; set; }
 	}
 
@@ -26,6 +27,7 @@ namespace FunticoGamesSDK.APIModels
 		public int FunticoUserId { get; set; }
 		public string UserIp { get; set; }
 		public string AdditionalData { get; set; }
+		public long? GameManagedAward { get; set; }
 		public List<string> GameEvents { get; set; } = null;
 	}
 
@@ -51,6 +53,9 @@ namespace FunticoGamesSDK.APIModels
 
 		[JsonProperty("user_id")]
 		public long UserId;
+        
+		[JsonProperty("game_managed_award")]
+		public long? GameManagedAward { get; set; }
 	}
 
 	public class NumberWarsUserAdditionalData 

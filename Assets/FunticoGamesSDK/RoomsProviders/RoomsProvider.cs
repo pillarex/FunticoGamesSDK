@@ -138,14 +138,15 @@ namespace FunticoGamesSDK.RoomsProviders
 		}
 
 		public async UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId,
-			int funticoUserId, string userIp)
+			int funticoUserId, string userIp, long? gameManagedAward = null)
 		{
 			var gameData = new RoomSaveScoreRequest()
 			{
 				Score = score,
 				UserId = userId,
 				Ip = userIp,
-				GameEvents = _serverSessionManager.GetCurrentSessionEvents_Server(funticoUserId)
+				GameEvents = _serverSessionManager.GetCurrentSessionEvents_Server(funticoUserId),
+				GameManagedAward = gameManagedAward
 			};
 			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match, $"eventId={eventId}",
 				$"gameSessionIrOrMatchId={sessionId}");
@@ -164,7 +165,8 @@ namespace FunticoGamesSDK.RoomsProviders
 					IsSuspectedCheater = false,
 					Score = participant.Score,
 					UserId = participant.FunticoUserId,
-					UserIpEndSession = participant.UserIp
+					UserIpEndSession = participant.UserIp,
+					GameManagedAward = participant.GameManagedAward
 				}).ToList()
 			};
 			var url = APIConstants.WithQuery(APIConstants.Post_Score_List_Match_Server, $"eventId={eventId}",
