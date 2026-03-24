@@ -15,7 +15,6 @@ namespace FunticoGamesSDK.ViewModels
         public RoomTierEnum Tier { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }
-
         public bool? HasPassword { get; set; }
         public Func<Task<Sprite>> LoadRoomImageTask { get; set; }
         public Ticket Ticket { get; set; }
@@ -24,10 +23,12 @@ namespace FunticoGamesSDK.ViewModels
         public VoucherData Voucher { get; set; }
         public Sprite FeeIcon { get; set; }
         public ulong EntryFee => (ulong) (Ticket?.CurrencyAmount ?? 0);
+        public int? RoomSize { get; set; }
         public float EntryFeeUSDT { get; set; }
         public ulong TotalPrize { get; set; }
         public bool IsPrePaid { get; set; }
         public bool RequireKyc { get; set; }
+        public RoomConfig Config { get; set; }
 
         public RoomViewModel() { }
 
@@ -64,6 +65,9 @@ namespace FunticoGamesSDK.ViewModels
                 Description = config.Details.Description;
             if (config.Details.HasPassword != null)
                 HasPassword = config.Details.HasPassword;
+            if (config.Size != null)
+                RoomSize = config.Size;
+            Config = config;
         }
     }
 }
