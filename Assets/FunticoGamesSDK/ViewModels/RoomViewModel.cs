@@ -14,6 +14,9 @@ namespace FunticoGamesSDK.ViewModels
         public string Guid { get; set; }
         public RoomTierEnum Tier { get; set; }
         public string Name { get; set; }
+        public string Description { get; set; }
+
+        public bool? HasPassword { get; set; }
         public Func<Task<Sprite>> LoadRoomImageTask { get; set; }
         public Ticket Ticket { get; set; }
         public bool IsFree => Ticket.IsFree();
@@ -57,6 +60,10 @@ namespace FunticoGamesSDK.ViewModels
             }
             RequireKyc = false;
             TotalPrize = (ulong) (config.Computed.Stake - config.Computed.PlatformFee);
+            if (config.Details.Description != null)
+                Description = config.Details.Description;
+            if (config.Details.HasPassword != null)
+                HasPassword = config.Details.HasPassword;
         }
     }
 }
