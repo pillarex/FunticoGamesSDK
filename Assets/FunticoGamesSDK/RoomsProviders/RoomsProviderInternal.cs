@@ -92,8 +92,10 @@ namespace FunticoGamesSDK.RoomsProviders
             var roomData = await GetRoomConfig(guid);
             return await CreateRoomViewModel(roomData);
         }
-
+        
         public async UniTask<string> GetRoomSettings(string guid) => await GetRoomSettingsInternal(guid);
+
+        public async UniTask<T> GetRoomSettingsObject<T>(string guid) => await GetRoomSettingsInternalObject<T>(guid);
 
         public async UniTask<List<RoomViewModel>> GetRooms(RoomTierEnum? tier = null, RoomType roomType = RoomType.singleplayer)
         {
@@ -124,6 +126,16 @@ namespace FunticoGamesSDK.RoomsProviders
 
         #region APICalls
 
+        private async UniTask<T> GetRoomSettingsInternalObject<T>(string guid)
+        {
+            var url = $"{APIConstants.Get_Room_Settings}?eventId={guid}";
+            (bool success, T response) =
+                await HTTPClient.Get<T>(url);
+            if (!success)
+                Logger.LogError("Failed to get room settings");
+            return response;
+        }
+        
         private async UniTask<string> GetRoomSettingsInternal(string guid)
         {
             var url = $"{APIConstants.Get_Room_Settings}?eventId={guid}";

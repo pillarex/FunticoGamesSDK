@@ -10,6 +10,7 @@ namespace FunticoGamesSDK.RoomsProviders
         public UniTask<List<TierViewModel>> GetTiers();
         public UniTask<RoomViewModel> GetRoom(string guid);
         public UniTask<string> GetRoomSettings(string guid);
+        public UniTask<T> GetRoomSettingsObject<T>(string guid);
         public UniTask<List<RoomViewModel>> GetRooms(RoomTierEnum? tier, RoomType roomType);
         public UniTask<RoomData> JoinRoom(string roomGuid);
         public UniTask<PrizePoolDistibutionViewModel> GetPrizePoolDistribution(string roomGuid);

@@ -24,8 +24,10 @@ namespace FunticoGamesSDK
 		public UniTask<List<TierViewModel>> GetTiers() => _roomsProvider.GetTiers();
 
 		public UniTask<RoomViewModel> GetRoom(string guid) => _roomsProvider.GetRoom(guid);
-
+		
 		public UniTask<string> GetRoomSettings(string guid) => _roomsProvider.GetRoomSettings(guid);
+		
+		public UniTask<T> GetRoomSettingsObject<T>(string guid) => _roomsProvider.GetRoomSettingsObject<T>(guid);
 
 		public UniTask<List<RoomViewModel>> GetRooms(RoomTierEnum? tier, RoomType roomType = RoomType.singleplayer) =>
 			_roomsProvider.GetRooms(tier, roomType);
