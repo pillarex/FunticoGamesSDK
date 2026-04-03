@@ -142,7 +142,7 @@ namespace FunticoGamesSDK.RoomsProviders
 			return success;
 		}
 
-		public async UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId,
+		public async UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int? score, int userId,
 			int funticoUserId, string userIp, long? gameManagedAward = null)
 		{
 			var gameData = new RoomSaveScoreRequest()

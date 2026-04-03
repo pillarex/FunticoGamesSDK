@@ -46,7 +46,7 @@ namespace FunticoGamesSDK
 		public UniTask<bool> FinishRoomSession_Client(string eventId, string sessionId, int score) =>
 			_roomsProvider.FinishRoomSession_Client(eventId, sessionId, score);
 
-		public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int score, int userId, int funticoId, string userIp, long? gameManagedAward = null) =>
+		public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int? score, int userId, int funticoId, string userIp, long? gameManagedAward = null) =>
 			_roomsProvider.FinishRoomSession_Server(eventId, sessionId, score, userId, funticoId, userIp, gameManagedAward);
 
 		public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, List<FinishedUser> participants) => 
