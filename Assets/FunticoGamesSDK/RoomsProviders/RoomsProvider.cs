@@ -125,18 +125,21 @@ namespace FunticoGamesSDK.RoomsProviders
 				Score = score,
 				UserId = userData.UserId
 			};
-
-			var gameDataKey = sessionId.Take(8).Concat(PrivateKey.Take(8)).ToString();
+			
+			var gameDataKey = sessionId.Substring(0, 8) + PrivateKey.Substring(0, 8);
 			var encrypted = AESNonDynamic.Encrypt(JsonConvert.SerializeObject(gameData), gameDataKey);
-			var hashSummary = HashUtils.HashString(encrypted, PrivateKey.Skip(8).ToString());
+			var hashSummary = HashUtils.HashString(encrypted, PrivateKey.Substring(8));
+
 			var data = new RoomSaveScoreRequestEncrypted()
 			{
 				EncryptedData = encrypted,
 				Hash = hashSummary,
 				TournamentId = Guid.Parse(eventId),
 			};
+
 			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match, $"eventId={eventId}",
-				$"gameSessionIrOrMatchId={sessionId}");
+				$"gameSessionIrOrMatchId={sessionId}"); 
+
 			var success = await HTTPClient.Post_Short(url, data);
 			_clientSessionManager.CloseCurrentSession_Client();
 			return success;
