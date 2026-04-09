@@ -86,8 +86,11 @@ namespace FunticoGamesSDK.SessionsManagement
 
 		private string GetEncryptionKey()
 		{
-			var userGuid = IntToGuidHelper.IntToGuid(_userDataService.GetCachedUserData().UserId).ToString();
-			return userGuid.Take(8).ToString() + _privateKey.TakeLast(8);
+			var userGuidStr = IntToGuidHelper.IntToGuid(_userDataService.GetCachedUserData().UserId).ToString();
+			var firstPart = userGuidStr.Substring(0, 8);
+			var secondPart = _privateKey.Substring(_privateKey.Length - 8); 
+
+			return firstPart + secondPart;
 		}
 
 		private SavedSessionResponse EncryptCurrentSessionData(string json)
