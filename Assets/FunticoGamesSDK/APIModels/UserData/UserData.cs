@@ -20,5 +20,8 @@ namespace FunticoGamesSDK.APIModels.UserData
         public int UserId { get; set; }
         public uint PrivateTickets { get; set; }
         public bool KYCVerified { get; set; }
+        public string AvatarUrl { get; set; }
+        public string AvatarType { get; set; }
+        public string AvatarBorder { get; set; }
     }   
 }
