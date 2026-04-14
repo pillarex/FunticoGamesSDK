@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -196,6 +196,22 @@ namespace FunticoGamesSDK.RoomsProviders
             (bool success, RoomConfig response) = await HTTPClient.Get<RoomConfig>(link);
             if (!success)
                 Logger.LogError("Failed to get events");
+            return response;
+        }
+
+        protected async UniTask<RoomsHistoryResponse> GetHistoryFromAPI(int page, string filters, int? limit, string cursor)
+        {
+            var url = $"{APIConstants.Get_Rooms_History}?page={page}";
+            if (limit.HasValue)
+                url += $"&limit={limit.Value}";
+            if (!string.IsNullOrEmpty(filters))
+                url += $"&filters[match_type]={filters}";
+            if (!string.IsNullOrEmpty(cursor))
+                url += $"&cursor={cursor}";
+
+            (bool success, RoomsHistoryResponse response) = await HTTPClient.Get<RoomsHistoryResponse>(url);
+            if (!success)
+                Logger.LogError("Failed to get rooms history");
             return response;
         }
 

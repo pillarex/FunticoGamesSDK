@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Cysharp.Threading.Tasks;
@@ -182,6 +182,11 @@ namespace FunticoGamesSDK.RoomsProviders
 			var success = await HTTPClient.Post_Short(url, data);
 			_serverSessionManager.CloseCurrentSession_Server().Forget();
 			return success;
+		}
+
+		public async UniTask<RoomsHistoryResponse> GetHistory(int page, string filters = null, int? limit = null, string cursor = null)
+		{
+			return await GetHistoryFromAPI(page, filters, limit, cursor);
 		}
 
 		#endregion
