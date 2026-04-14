@@ -662,6 +662,82 @@ foreach (var place in prizePool.PrizePlaces)
 
 ---
 
+### `GetHistory`
+
+Gets paginated rooms history for the current user.
+
+**Signature:**
+```csharp
+public UniTask<RoomsHistoryResponse> GetHistory(
+    int page, 
+    string filters = null, 
+    int? limit = null, 
+    string cursor = null)
+```
+
+**Parameters:**
+- `page` - Page number for pagination
+- `filters` - Optional match type filter (e.g., `"singleplayer"`, `"multiplayer"`)
+- `limit` - Optional number of results per page
+- `cursor` - Optional cursor for cursor-based pagination (returned from previous response)
+
+**Returns:** `UniTask<RoomsHistoryResponse>` - History response containing game sessions and pagination cursor
+
+**Description:**
+Retrieves the authenticated user's room participation history with pagination support. Can be filtered by match type. Supports both page-based and cursor-based pagination.
+
+**RoomsHistoryResponse Properties:**
+- `Data` (Data) - Contains game sessions, events, and item/reward IDs
+  - `GameSessions` (List\<GameSession\>) - List of historical game sessions
+  - `Events` (List\<RoomConfig\>) - Associated room configurations
+  - `ItemIds` (List\<string\>) - Related item identifiers
+  - `RewardIds` (List\<string\>) - Related reward identifiers
+- `Cursor` (string) - Pagination cursor for fetching next page
+
+**GameSession Properties:**
+- `Id` (string) - Session identifier
+- `EventId` (string) - Associated room/event identifier
+- `MatchId` (string) - Match identifier
+- `Score` (int?) - Player's score
+- `MatchType` (int?) - Match type
+- `StartedAt` (DateTime?) - When the session started
+- `ScoredAt` (DateTime?) - When the score was submitted
+- `DistributedAt` (DateTime?) - When prizes were distributed
+- `VoucherUsed` (bool) - Whether a voucher was used for entry
+
+**Usage:**
+```csharp
+// Get first page of history
+RoomsHistoryResponse history = await FunticoSDK.Instance.GetHistory(page: 1, limit: 10);
+
+if (history?.Data?.GameSessions != null)
+{
+    foreach (var session in history.Data.GameSessions)
+    {
+        Debug.Log($"Event: {session.EventId}, Score: {session.Score}, Date: {session.StartedAt}");
+    }
+    
+    // Fetch next page using cursor
+    if (!string.IsNullOrEmpty(history.Cursor))
+    {
+        var nextPage = await FunticoSDK.Instance.GetHistory(
+            page: 2, 
+            limit: 10, 
+            cursor: history.Cursor
+        );
+    }
+}
+
+// Filter by match type
+RoomsHistoryResponse filtered = await FunticoSDK.Instance.GetHistory(
+    page: 1, 
+    filters: "singleplayer", 
+    limit: 20
+);
+```
+
+---
+
 ### `GetLeaderboard`
 
 Gets leaderboard/results for a completed or ongoing game session.
