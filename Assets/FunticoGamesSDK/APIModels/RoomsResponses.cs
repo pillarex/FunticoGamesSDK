@@ -30,7 +30,8 @@ namespace FunticoGamesSDK.APIModels
         GppPerPlayer = 4,
         External = 5,
         Placeholder = 6,
-        Reward = 7
+        Reward = 7,
+        GameManagedReward = 8
     }
 
     public enum RoomFinishReason

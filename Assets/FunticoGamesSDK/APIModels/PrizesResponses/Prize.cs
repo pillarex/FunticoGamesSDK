@@ -80,6 +80,15 @@ namespace FunticoGamesSDK.APIModels.PrizesResponses
         [JsonProperty("percentage")]
         public byte? Percentage { get; set; }
     }
+    
+    public class GameManagedPrize : Prize
+    {
+        [JsonProperty("currency")]
+        public byte Currency { get; set; }
+        
+        [JsonProperty("value")]
+        public ulong Value { get; set; }
+    }
 
     public class GppAutomatedPrize : Prize
     {

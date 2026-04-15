@@ -18,6 +18,7 @@ namespace FunticoGamesSDK.APIModels.Converters
 			{ PrizeType.GppPoolShare, typeof(GppAutomatedPrize) },
 			{ PrizeType.GppPerPlayer, typeof(GppAutomatedPrize) },
 			{ PrizeType.Reward, typeof(RewardAutomatedPrize) },
+			{ PrizeType.GameManagedReward, typeof(GameManagedPrize) },
 		};
 
 		public override bool CanConvert(Type objectType)
