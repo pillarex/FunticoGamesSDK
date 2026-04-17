@@ -184,7 +184,7 @@ namespace FunticoGamesSDK.RoomsProviders
 			return success;
 		}
 
-		public async UniTask<RoomsHistoryResponse> GetHistory(int page, string filters = null, int? limit = null, string cursor = null)
+		public async UniTask<RoomsHistoryResponse> GetHistory(int page, string filters = null, int? limit = 10, string cursor = null)
 		{
 			return await GetHistoryFromAPI(page, filters, limit, cursor);
 		}

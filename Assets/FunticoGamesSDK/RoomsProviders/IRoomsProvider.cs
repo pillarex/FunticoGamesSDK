@@ -19,6 +19,6 @@ namespace FunticoGamesSDK.RoomsProviders
         public UniTask<bool> FinishRoomSession_Client(string eventId, string sessionId, int score);
         public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, int? score, int userId, int funticoUserId, string userIp, long? gameManagedAward = null);
         public UniTask<bool> FinishRoomSession_Server(string eventId, string sessionId, List<FinishedUser> participants);
-        public UniTask<RoomsHistoryResponse> GetHistory(int page, string filters = null, int? limit = null, string cursor = null);
+        public UniTask<RoomsHistoryResponse> GetHistory(int page, string filters = null, int? limit = 10, string cursor = null);
     }
 }
