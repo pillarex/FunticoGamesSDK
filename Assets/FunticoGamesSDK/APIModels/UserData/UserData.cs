@@ -23,5 +23,6 @@ namespace FunticoGamesSDK.APIModels.UserData
         public string AvatarUrl { get; set; }
         public string AvatarType { get; set; }
         public string AvatarBorder { get; set; }
+        public string AvatarBorderType { get; set; }
     }   
 }
