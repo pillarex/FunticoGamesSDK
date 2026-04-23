@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.TextureResizer;
@@ -12,7 +12,7 @@ namespace FunticoGamesSDK.AssetsProvider
 {
     public class UrlAssetProvider
     {
-        public static string Domain = APIConstants.FUNTICO_BASE;
+        public static string Domain => APIConstants.FUNTICO_BASE;
         public const string OriginHeaderKey = "Origin";
         private const int START_DELAY_MS = 1000;
         private const int MAX_DELAY_MS = 60000;

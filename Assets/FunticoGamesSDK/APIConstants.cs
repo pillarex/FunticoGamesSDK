@@ -37,43 +37,43 @@ namespace FunticoGamesSDK
 
         #region Funtico
 
-        public static string GENERATE_GAME_LINK = FUNTICO_API_BASE + "/api/v1/web/generate-game-link";
-        public static string VERIFICATION = FUNTICO_BASE + "/profile/verification";
-        public static string USERS_INFO = FUNTICO_API_BASE + "/api/v1/web/users";
-        public static string FUNTICO_SHOP = FUNTICO_BASE + "/shop";
+        public static string GENERATE_GAME_LINK => FUNTICO_API_BASE + "/api/v1/web/generate-game-link";
+        public static string VERIFICATION => FUNTICO_BASE + "/profile/verification";
+        public static string USERS_INFO => FUNTICO_API_BASE + "/api/v1/web/users";
+        public static string FUNTICO_SHOP => FUNTICO_BASE + "/shop";
 
         #endregion
 
         #region Authentication
-        public static string GUEST_LOGIN = API + "/Auth/guest-login";
-        public static string FUNTICO_LOGIN = API + "/Auth/funtico-auth";
+        public static string GUEST_LOGIN => API + "/Auth/guest-login";
+        public static string FUNTICO_LOGIN => API + "/Auth/funtico-auth";
         #endregion
         
         #region User
-        public static string USER_BALANCE = API + "/User/get-balance";
-        public static string USER_ALL_DATA = API + "/User/get-full-data";
-        public static string VOUCHERS = API + "/User/vouchers";
-        public static string VOUCHERS_STATIC_DATA = API + "/User/vouchers-data";
+        public static string USER_BALANCE => API + "/User/get-balance";
+        public static string USER_ALL_DATA => API + "/User/get-full-data";
+        public static string VOUCHERS => API + "/User/vouchers";
+        public static string VOUCHERS_STATIC_DATA => API + "/User/vouchers-data";
         #endregion
 
         #region Rooms
 
-        public static readonly string Get_Room_Public = API + "/Rooms/get-room-public";
-        public static readonly string Get_Room = API + "/Rooms/get-room";
-        public static readonly string Get_Rooms = API + "/Rooms/get-rooms";
-        public static readonly string Post_Join_Room = API + "/Rooms/join-room";
-        public static readonly string Post_Room_Started = API + "/Rooms/start-room-sp";
-        public static readonly string Post_Score_Match = API + "/Rooms/end-room-sp";
-        public static readonly string Get_Pre_Paid = API + "/Rooms/pre-paid";
-        public static readonly string Get_Room_Settings = API + "/Rooms/game-settings";
-        public static readonly string Get_Room_Settings_Server = API + "/Rooms/game-settings-server";
-        public static readonly string Post_Room_Started_Server = API + "/Rooms/start-room-mp";
-        public static readonly string Post_Score_Match_Server = API + "/Rooms/end-room-mp";
-        public static readonly string Post_Score_List_Match_Server = API + "/Rooms/end-room-all-users";
-        public static readonly string Get_Room_Leaders = API + "/Rooms/leaders";
-        public static readonly string Get_Rooms_History = API + "/Rooms/history";
-        public static readonly string Get_Room_Session_History = API + "/Rooms/get-history";
-        public static readonly string Get_Tiers = API + "/Rooms/tiers";
+        public static string Get_Room_Public => API + "/Rooms/get-room-public";
+        public static string Get_Room => API + "/Rooms/get-room";
+        public static string Get_Rooms => API + "/Rooms/get-rooms";
+        public static string Post_Join_Room => API + "/Rooms/join-room";
+        public static string Post_Room_Started => API + "/Rooms/start-room-sp";
+        public static string Post_Score_Match => API + "/Rooms/end-room-sp";
+        public static string Get_Pre_Paid => API + "/Rooms/pre-paid";
+        public static string Get_Room_Settings => API + "/Rooms/game-settings";
+        public static string Get_Room_Settings_Server => API + "/Rooms/game-settings-server";
+        public static string Post_Room_Started_Server => API + "/Rooms/start-room-mp";
+        public static string Post_Score_Match_Server => API + "/Rooms/end-room-mp";
+        public static string Post_Score_List_Match_Server => API + "/Rooms/end-room-all-users";
+        public static string Get_Room_Leaders => API + "/Rooms/leaders";
+        public static string Get_Rooms_History => API + "/Rooms/history";
+        public static string Get_Room_Session_History => API + "/Rooms/get-history";
+        public static string Get_Tiers => API + "/Rooms/tiers";
 
         #endregion
 
@@ -81,18 +81,18 @@ namespace FunticoGamesSDK
 
         #region Client
 
-        public static readonly string UNFINISHED_SESSION = API + "/Session/any-unfinished-sessions";
-        public static readonly string CREATE_SESSION = API + "/Session/create-session";
-        public static readonly string UPDATE_SESSION = API + "/Session/update-session";
-        public static readonly string RECONNECT_TO_SESSION = API + "/Session/reconnect-to-session";
+        public static string UNFINISHED_SESSION => API + "/Session/any-unfinished-sessions";
+        public static string CREATE_SESSION => API + "/Session/create-session";
+        public static string UPDATE_SESSION => API + "/Session/update-session";
+        public static string RECONNECT_TO_SESSION => API + "/Session/reconnect-to-session";
 
         #endregion
 
         #region Server
 
-        public static readonly string SERVER_CREATE_SESSION = API + "/Session/create-server-session";
-        public static readonly string SERVER_CLOSE_SESSION = API + "/Session/close-server-session";
-        public static readonly string SERVER_USER_LEAVE_SESSION = API + "/Session/server-session-user-leave";
+        public static string SERVER_CREATE_SESSION => API + "/Session/create-server-session";
+        public static string SERVER_CLOSE_SESSION => API + "/Session/close-server-session";
+        public static string SERVER_USER_LEAVE_SESSION => API + "/Session/server-session-user-leave";
 
         #endregion
 
