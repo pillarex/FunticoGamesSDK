@@ -13,10 +13,8 @@ namespace FunticoGamesSDK.AuthDataProviders
 		public async UniTask<LoginResponse> Authentication(string platformToken)
 		{
 			_platformToken = platformToken;
-			var (_, response) = await HTTPClient.Post<LoginResponse>(APIConstants.FUNTICO_LOGIN, new
-			{
-				Token = platformToken,
-			});
+			var (_, response) = await HTTPClient.Post<LoginResponse>(APIConstants.FUNTICO_LOGIN,
+				JsonBody.Of(("Token", platformToken)));
 
 			_loginResponse = response;
 			return _loginResponse;

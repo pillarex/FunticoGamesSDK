@@ -249,13 +249,13 @@ namespace FunticoGamesSDK.RoomsProviders
 		{
 			var link = APIConstants.WithQuery(APIConstants.Post_Join_Room, $"idempotencyKey={Guid.NewGuid()}",
 				$"getLobbyQuote=true");
-			(bool ok, var response) = await HTTPClient.Post<APIModels.JoinRoomResponse>(link, new
-			{
-				tournamentId = roomId,
-				communityId = communityID,
-				password = string.IsNullOrWhiteSpace(password) ? string.Empty : password,
-				UseVoucher = useVoucher,
-			}, www => HTTPClient.DefaultErrorHandler(www));
+			(bool ok, var response) = await HTTPClient.Post<APIModels.JoinRoomResponse>(link,
+				JsonBody.Of(
+					("tournamentId", roomId),
+					("communityId", communityID),
+					("password", string.IsNullOrWhiteSpace(password) ? string.Empty : password),
+					("UseVoucher", (object)useVoucher)),
+				www => HTTPClient.DefaultErrorHandler(www));
 
 			if (!ok)
 			{

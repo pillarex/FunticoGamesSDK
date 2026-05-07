@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
@@ -281,6 +282,17 @@ namespace FunticoGamesSDK.NetworkUtils
         {
             GET = 0,
             POST = 1,
+        }
+    }
+
+    internal static class JsonBody
+    {
+        public static Dictionary<string, object> Of(params (string key, object value)[] fields)
+        {
+            var dict = new Dictionary<string, object>(fields.Length);
+            foreach (var (k, v) in fields)
+                dict[k] = v;
+            return dict;
         }
     }
 }
