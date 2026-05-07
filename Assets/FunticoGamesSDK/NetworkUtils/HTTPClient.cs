@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.AuthDataProviders;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using UnityEngine;
 using UnityEngine.Networking;
 using Logger = FunticoGamesSDK.Logging.Logger;
@@ -29,6 +30,10 @@ namespace FunticoGamesSDK.NetworkUtils
             _authDataProvider = authDataProvider;
             _errorHandler = errorHandler;
             _sessionId = sessionId;
+            JsonConvert.DefaultSettings = () => new JsonSerializerSettings
+            {
+                ContractResolver = new AotSafeContractResolver()
+            };
         }
 
         public static async Task<bool> Get_Short(string endPoint, Action<UnityWebRequest> errorHandler = null, string tokenToUse = null)
@@ -293,6 +298,20 @@ namespace FunticoGamesSDK.NetworkUtils
             foreach (var (k, v) in fields)
                 dict[k] = v;
             return dict;
+        }
+    }
+
+    internal sealed class AotSafeContractResolver : DefaultContractResolver
+    {
+        protected override JsonObjectContract CreateObjectContract(Type objectType)
+        {
+            var contract = base.CreateObjectContract(objectType);
+            if (contract.DefaultCreator == null &&
+                objectType.GetConstructor(Type.EmptyTypes) != null)
+            {
+                contract.DefaultCreator = () => Activator.CreateInstance(objectType);
+            }
+            return contract;
         }
     }
 }
