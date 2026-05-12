@@ -56,6 +56,21 @@ namespace FunticoGamesSDK
         public static string VOUCHERS_STATIC_DATA => API + "/User/vouchers-data";
         #endregion
 
+        #region Tournaments
+
+        public static string Get_Tournaments => API + "/SpecialTournaments/all-tournaments";
+        public static string Get_Tournament_Details_Light => API + "/SpecialTournaments/light-tournament-details";
+        public static string Get_Tournament_Leaderboard => API + "/SpecialTournaments/get-special-tournament-leaderboard";
+        public static string Get_Tournament_Communities => API + "/SpecialTournaments/get-tournaments-communities";
+        public static string Get_Join_Tournament => API + "/SpecialTournaments/join-tournament";
+        public static string Post_Tournament_Result => API + "/SpecialTournaments/result-tournament";
+        public static string Post_Tournament_Result_Client => API + "/SpecialTournaments/result-tournament-client";
+        public static string Get_Enter_Tournament => API + "/SpecialTournaments/enter-tournament";
+        public static string Get_Tournament_Prizes => API + "/SpecialTournaments/get-prizes";
+        public static string Get_Tournaments_History => API + "/SpecialTournaments/history";
+
+        #endregion
+
         #region Rooms
 
         public static string Get_Room_Public => API + "/Rooms/get-room-public";

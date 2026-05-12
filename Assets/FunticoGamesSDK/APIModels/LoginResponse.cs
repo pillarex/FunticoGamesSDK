@@ -2,6 +2,8 @@
 {
     public class LoginResponse
     {
+        public LoginResponse() { }
+
         public int Id { get; set; }
         public string Token { get; set; }
         public string LeaderBoardUri { get; set; }

@@ -42,6 +42,7 @@ namespace FunticoGamesSDK
 			SetupServerSessionManager();
 			SetupClientSessionManager(_userDataService, _privateGameKey);
 			SetupRoomsProvider(privateGameKey, _userDataService, _authDataProvider, _clientSessionManager, _serverSessionManager, _errorHandler);
+			SetupTournamentsProvider();
 			HTTPClient.Setup(publicGameKey, privateGameKey, _sessionId, _authDataProvider, errorHandler);
 			await WarmupServices();
 		}

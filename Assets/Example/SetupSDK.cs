@@ -333,6 +333,7 @@ public class SetupSDK : MonoBehaviour
     {
         availableRooms = rooms ?? new List<RoomViewModel>();
         Debug.Log($"Loaded {availableRooms.Count} rooms");
+        
 #if USE_FUNTICO_MATCHMAKING
         if (string.IsNullOrEmpty(_matchmakingEventId) && availableRooms.Count > 0)
             _matchmakingEventId = availableRooms[0].Guid;
@@ -386,6 +387,7 @@ public class SetupSDK : MonoBehaviour
         GUILayout.Label("Available Rooms", GUI.skin.box, GUILayout.Width(580), GUILayout.Height(30));
         
         scrollPosition = GUILayout.BeginScrollView(scrollPosition, GUILayout.Width(600), GUILayout.Height(Screen.height - 50));
+        
         
         foreach (var room in availableRooms)
         {

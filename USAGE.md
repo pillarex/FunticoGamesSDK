@@ -8,9 +8,10 @@ Complete reference guide for all public methods in Funtico SDK.
 2. [Authentication Methods](#authentication-methods)
 3. [User Data Methods](#user-data-methods)
 4. [Rooms & Tournament Methods](#rooms--tournament-methods)
-5. [Client Session Methods](#client-session-methods)
-6. [Server Session Methods](#server-session-methods)
-7. [Usage Examples](#usage-examples)
+5. [Special Tournaments Methods](#special-tournaments-methods)
+6. [Client Session Methods](#client-session-methods)
+7. [Server Session Methods](#server-session-methods)
+8. [Usage Examples](#usage-examples)
 
 ---
 
@@ -1024,6 +1025,486 @@ public async void OnMatchComplete(List<PlayerResult> results)
 
 ---
 
+## Special Tournaments Methods
+
+These methods provide access to the Funtico Special Tournaments system — timed competitive events with prize pools, leaderboards, and community groupings.
+
+### `GetTournaments`
+
+Gets available tournaments with optional filtering and pagination.
+
+**Signature:**
+```csharp
+public UniTask<List<TournamentViewModel>> GetTournaments(
+    int page = 1,
+    int perPage = 100,
+    TournamentsFilterEnum? filter = null)
+```
+
+**Parameters:**
+- `page` - Page number for pagination (default: 1)
+- `perPage` - Results per page (default: 100)
+- `filter` - Optional status filter: `OnGoing`, `Upcoming`, or `Finished`
+
+**Returns:** `UniTask<List<TournamentViewModel>>` - List of tournaments (empty list if none found)
+
+**Description:**
+Retrieves a paginated list of tournaments. Can be filtered by status to show only ongoing, upcoming, or finished tournaments.
+
+**TournamentViewModel Properties:**
+- `Id` (Guid) - Tournament unique identifier (`[JsonProperty("Plaftorfm_Guid")]`)
+- `Name` (string) - Tournament display name
+- `GameId` (int?) - Associated game identifier
+- `MapId` (int?) - Associated map identifier
+- `StartsAt` (DateTime?) - Tournament start time
+- `EndsAt` (DateTime?) - Tournament end time
+- `MaxEntries` (int?) - Maximum number of entries allowed
+- `EntriesCount` (int?) - Current number of entries
+- `EntryFee` (int?) - Entry fee amount
+- `EntryFeeType` (EntryFeeType?) - Currency type for entry fee
+- `IsJoined` (bool) - Whether current user has joined
+
+**Usage:**
+```csharp
+// Get all ongoing tournaments
+List<TournamentViewModel> ongoing = await FunticoSDK.Instance.GetTournaments(
+    filter: TournamentsFilterEnum.OnGoing
+);
+
+foreach (var t in ongoing)
+{
+    Debug.Log($"{t.Name} — ends {t.EndsAt}, entries: {t.EntriesCount}/{t.MaxEntries}");
+}
+
+// Paginated fetch of all tournaments
+List<TournamentViewModel> page2 = await FunticoSDK.Instance.GetTournaments(page: 2, perPage: 20);
+```
+
+---
+
+### `GetTournamentDetailsLight`
+
+Gets basic details for a specific tournament.
+
+**Signature:**
+```csharp
+public UniTask<TournamentViewModel> GetTournamentDetailsLight(Guid tournamentId)
+```
+
+**Parameters:**
+- `tournamentId` - Tournament unique identifier
+
+**Returns:** `UniTask<TournamentViewModel>` - Tournament details (or null if not found)
+
+**Description:**
+Retrieves lightweight tournament metadata — name, dates, entry details, and join status. Use this when you need current data for a single tournament without leaderboard player lists.
+
+**Usage:**
+```csharp
+TournamentViewModel details = await FunticoSDK.Instance.GetTournamentDetailsLight(tournamentId);
+
+if (details != null)
+{
+    Debug.Log($"Tournament: {details.Name}");
+    Debug.Log($"Starts: {details.StartsAt}, Ends: {details.EndsAt}");
+    Debug.Log($"Already joined: {details.IsJoined}");
+}
+```
+
+---
+
+### `GetTournamentLeaderboard`
+
+Gets the leaderboard for a tournament including all player rankings.
+
+**Signature:**
+```csharp
+public UniTask<TournamentLeaderboardViewModel> GetTournamentLeaderboard(Guid tournamentId)
+```
+
+**Parameters:**
+- `tournamentId` - Tournament unique identifier
+
+**Returns:** `UniTask<TournamentLeaderboardViewModel>` - Leaderboard data (or null if not found)
+
+**Description:**
+Retrieves full leaderboard for a tournament, including a ranked list of all players and data for the currently authenticated user's entry.
+
+**TournamentLeaderboardViewModel Properties:**
+Inherits all `TournamentViewModel` properties, plus:
+- `Players` (List\<TournamentPlayerViewModel\>) - Ranked list of all players
+- `CurrentPlayer` (TournamentPlayerViewModel) - Authenticated user's leaderboard entry
+- `TotalPlayers` (int?) - Total number of participants
+
+**TournamentPlayerViewModel Properties:**
+- `UserId` (int?) - Player user identifier
+- `UserName` (string) - Player display name
+- `Score` (int?) - Player's current score
+- `Place` (int?) - Player's current rank
+- `user_avatar` (FunticoUserAvatar) - Player avatar data
+- `user_border` (FunticoUserAvatar) - Player border/frame data
+
+**Usage:**
+```csharp
+TournamentLeaderboardViewModel leaderboard = 
+    await FunticoSDK.Instance.GetTournamentLeaderboard(tournamentId);
+
+if (leaderboard != null)
+{
+    Debug.Log($"Total players: {leaderboard.TotalPlayers}");
+
+    if (leaderboard.CurrentPlayer != null)
+        Debug.Log($"My rank: #{leaderboard.CurrentPlayer.Place}, score: {leaderboard.CurrentPlayer.Score}");
+
+    foreach (var player in leaderboard.Players)
+    {
+        Debug.Log($"#{player.Place} {player.UserName} — {player.Score}");
+    }
+}
+```
+
+---
+
+### `GetTournamentCommunities`
+
+Gets community groups available within a tournament.
+
+**Signature:**
+```csharp
+public UniTask<List<TournamentCommunityViewModel>> GetTournamentCommunities(Guid tournamentId)
+```
+
+**Parameters:**
+- `tournamentId` - Tournament unique identifier
+
+**Returns:** `UniTask<List<TournamentCommunityViewModel>>` - List of communities (empty list if none)
+
+**Description:**
+Retrieves community groupings for a tournament. Communities allow players to compete within subgroups. Pass the chosen community's `Uuid` to `JoinTournament` to join within that group.
+
+**TournamentCommunityViewModel Properties:**
+- `Uuid` (Guid) - Community unique identifier (`[JsonProperty("UUID")]`)
+- `Name` (string) - Community display name
+- `Description` (string) - Community description
+- `MembersCount` (int?) - Number of current members
+
+**Usage:**
+```csharp
+var communities = await FunticoSDK.Instance.GetTournamentCommunities(tournamentId);
+
+foreach (var community in communities)
+{
+    Debug.Log($"{community.Name} — {community.MembersCount} members");
+}
+
+// Let user pick a community, then pass its Uuid to JoinTournament
+Guid selectedCommunityId = communities[0].Uuid;
+await FunticoSDK.Instance.JoinTournament(tournamentId, selectedCommunityId);
+```
+
+---
+
+### `JoinTournament`
+
+Joins a tournament, optionally specifying a community and password.
+
+**Signature:**
+```csharp
+public UniTask<bool> JoinTournament(
+    Guid tournamentId,
+    Guid? communityId = null,
+    string password = null)
+```
+
+**Parameters:**
+- `tournamentId` - Tournament unique identifier
+- `communityId` - Optional community to join within the tournament
+- `password` - Optional password for password-protected tournaments
+
+**Returns:** `UniTask<bool>` - `true` if successfully joined, `false` otherwise
+
+**Description:**
+Registers the authenticated user in a tournament. Call this once before the first `EnterTournament`. Does not start a game session — use `EnterTournament` when the player is ready to play.
+
+**Usage:**
+```csharp
+// Join open tournament
+bool joined = await FunticoSDK.Instance.JoinTournament(tournamentId);
+
+// Join with community
+bool joined = await FunticoSDK.Instance.JoinTournament(tournamentId, communityId: communityGuid);
+
+// Join password-protected tournament
+bool joined = await FunticoSDK.Instance.JoinTournament(tournamentId, password: "secret123");
+
+if (joined)
+    Debug.Log("Successfully joined tournament!");
+else
+    Debug.Log("Failed to join — check IErrorHandler for details");
+```
+
+---
+
+### `EnterTournament`
+
+Enters a tournament game and receives session identifiers.
+
+**Signature:**
+```csharp
+public UniTask<TournamentEnterData> EnterTournament(Guid tournamentId)
+```
+
+**Parameters:**
+- `tournamentId` - Tournament unique identifier
+
+**Returns:** `UniTask<TournamentEnterData>` - Session entry data (or null if failed)
+
+**Description:**
+Creates a tournament game entry and returns the `saveScoreId` needed to submit a result. Call this immediately before starting the gameplay. The returned `saveScoreId` must be passed to `ResultTournament` or `ResultTournament_Client` after the game ends.
+
+**TournamentEnterData Properties:**
+- `LocalTournamentUuid` (string) - Save-score session identifier (`[JsonProperty("LocalTournamentUUID")]`)
+
+**Usage:**
+```csharp
+TournamentEnterData enterData = await FunticoSDK.Instance.EnterTournament(tournamentId);
+
+if (enterData != null)
+{
+    string saveScoreId = enterData.LocalTournamentUuid;
+    Debug.Log($"Entered tournament. SaveScore ID: {saveScoreId}");
+    StartTournamentGame(saveScoreId);
+}
+else
+{
+    Debug.LogError("Failed to enter tournament");
+}
+```
+
+---
+
+### `ResultTournament`
+
+Submits a tournament game result from the server (server-side).
+
+**Signature:**
+```csharp
+public UniTask<TournamentResultViewModel> ResultTournament(
+    Guid tournamentId,
+    string saveScoreId,
+    int? score,
+    bool isSuccess)
+```
+
+**Parameters:**
+- `tournamentId` - Tournament unique identifier
+- `saveScoreId` - Session identifier from `EnterTournament` (`TournamentEnterData.LocalTournamentUuid`)
+- `score` - Final game score (null if score is not applicable)
+- `isSuccess` - Whether the game session was completed successfully
+
+**Returns:** `UniTask<TournamentResultViewModel>` - Result confirmation from server (or null if failed)
+
+**Description:**
+Submits a plain-text result from a trusted server build. The SDK automatically attaches the authenticated user's `UserId` to the request. Use `ResultTournament_Client` instead for client builds where a dedicated server is not available.
+
+**TournamentResultViewModel Properties:**
+- `Score` (int?) - Recorded score
+- `Time` (float?) - Session duration
+- `XpReceive` (int?) - XP awarded
+- `IcReceive` (int?) - In-game currency awarded
+
+**Usage:**
+```csharp
+#if SERVER || UNITY_SERVER
+TournamentResultViewModel result = await FunticoSDK.Instance.ResultTournament(
+    tournamentId,
+    saveScoreId,
+    score: finalScore,
+    isSuccess: true
+);
+
+if (result != null)
+    Debug.Log($"Result recorded. XP gained: {result.XpReceive}");
+#endif
+```
+
+**Important Notes:**
+- Only use in server builds (with `SERVER` or `UNITY_SERVER` defines)
+- Requires a valid `saveScoreId` obtained from `EnterTournament`
+
+---
+
+### `ResultTournament_Client`
+
+Submits a tournament game result from the client with AES encryption (client-side).
+
+**Signature:**
+```csharp
+public UniTask<bool> ResultTournament_Client(
+    Guid tournamentId,
+    string saveScoreId,
+    int? score,
+    bool isSuccess,
+    string customData = null)
+```
+
+**Parameters:**
+- `tournamentId` - Tournament unique identifier
+- `saveScoreId` - Session identifier from `EnterTournament` (`TournamentEnterData.LocalTournamentUuid`)
+- `score` - Final game score (null if score is not applicable)
+- `isSuccess` - Whether the game session was completed successfully
+- `customData` - Optional JSON string with additional game data
+
+**Returns:** `UniTask<bool>` - `true` if result successfully recorded, `false` otherwise
+
+**Description:**
+Submits an encrypted result from a client build. The payload (`score`, `isSuccess`, `customData`) is AES-encrypted using a key derived from `saveScoreId` and the game's private key, then HMAC-signed before sending. Use this in games without a dedicated server.
+
+**Usage:**
+```csharp
+bool success = await FunticoSDK.Instance.ResultTournament_Client(
+    tournamentId,
+    saveScoreId,
+    score: finalScore,
+    isSuccess: true,
+    customData: JsonConvert.SerializeObject(new { kills = 5, levelReached = 3 })
+);
+
+if (success)
+{
+    Debug.Log("Tournament result submitted!");
+    // Show leaderboard
+    var leaderboard = await FunticoSDK.Instance.GetTournamentLeaderboard(tournamentId);
+    DisplayLeaderboard(leaderboard);
+}
+else
+{
+    Debug.LogError("Failed to submit tournament result");
+}
+```
+
+**Important Notes:**
+- Only use in client builds (not on dedicated servers)
+- Payload is AES-encrypted + HMAC-signed automatically — do not encrypt `customData` manually
+- `saveScoreId` must come from a matching `EnterTournament` call
+
+---
+
+### `GetPrizes`
+
+Gets the prize structure for a tournament.
+
+**Signature:**
+```csharp
+public UniTask<TournamentPrizesViewModel> GetPrizes(Guid tournamentId)
+```
+
+**Parameters:**
+- `tournamentId` - Tournament unique identifier
+
+**Returns:** `UniTask<TournamentPrizesViewModel>` - Prize distribution info (empty object if none)
+
+**Description:**
+Retrieves the prize breakdown for a tournament showing what each place receives.
+
+**TournamentPrizesViewModel Properties:**
+- `Places` (List\<TournamentPrizePlaceViewModel\>) - Prize for each ranking place
+
+**TournamentPrizePlaceViewModel Properties:**
+- `Place` (int?) - Ranking position
+- `Prizes` (List\<TournamentPrizeItemViewModel\>) - List of prizes for this place
+
+**TournamentPrizeItemViewModel Properties:**
+- `Name` (string) - Prize display name
+- `Amount` (int?) - Prize amount
+- `ImageUrl` (string) - Prize image URL
+
+**Usage:**
+```csharp
+TournamentPrizesViewModel prizes = await FunticoSDK.Instance.GetPrizes(tournamentId);
+
+foreach (var place in prizes.Places)
+{
+    string prizeText = string.Join(", ", place.Prizes.Select(p => $"{p.Amount} {p.Name}"));
+    Debug.Log($"Place #{place.Place}: {prizeText}");
+}
+```
+
+---
+
+### `GetTournamentsHistory`
+
+Gets paginated history of tournaments the user has participated in.
+
+**Signature:**
+```csharp
+public UniTask<TournamentHistoryViewModel> GetTournamentsHistory(
+    int page = 1,
+    int perPage = 10)
+```
+
+**Parameters:**
+- `page` - Page number for pagination (default: 1)
+- `perPage` - Results per page (default: 10)
+
+**Returns:** `UniTask<TournamentHistoryViewModel>` - History with entries and pagination metadata (empty object if none)
+
+**Description:**
+Retrieves the authenticated user's tournament participation history with scores, placement, and prizes received.
+
+**TournamentHistoryViewModel Properties:**
+- `Entries` (List\<TournamentHistoryEntry\>) - List of tournament history entries
+- `Meta` (TournamentHistoryMeta) - Pagination metadata
+
+**TournamentHistoryMeta Properties:**
+- `CurrentPage` (int?) - Current page number
+- `LastPage` (int?) - Last available page
+- `PerPage` (int?) - Items per page
+- `Total` (int?) - Total number of entries
+
+**TournamentHistoryEntry Properties:**
+- `TournamentName` (string) - Tournament name
+- `TournamentUuid` (string) - Tournament identifier
+- `StartsAt` / `EndsAt` (DateTime?) - Tournament dates
+- `ScoredAt` (DateTime?) - When this entry was scored
+- `IsFinished` (bool?) - Whether the tournament has finished
+- `BestScore` (int?) - User's best score in this tournament
+- `LeaderboardPlace` (int?) - User's final leaderboard position
+- `EntriesCount` / `MaxEntries` (int?) - Participation numbers
+- `Prizes` (List\<TournamentHistoryPrize\>) - Prizes awarded
+
+**TournamentHistoryPrize Properties:**
+- `Name` (string) - Prize name
+- `Amount` (int?) - Prize amount
+- `ImageUrl` (string) - Prize image URL
+- `IsRedeemed` (bool?) - Whether prize has been redeemed
+
+**Usage:**
+```csharp
+TournamentHistoryViewModel history = await FunticoSDK.Instance.GetTournamentsHistory(page: 1, perPage: 10);
+
+Debug.Log($"Page {history.Meta?.CurrentPage} of {history.Meta?.LastPage}, total: {history.Meta?.Total}");
+
+foreach (var entry in history.Entries)
+{
+    Debug.Log($"{entry.TournamentName} — Place #{entry.LeaderboardPlace}, Score: {entry.BestScore}");
+
+    foreach (var prize in entry.Prizes ?? new())
+    {
+        string status = prize.IsRedeemed == true ? "redeemed" : "pending";
+        Debug.Log($"  Prize: {prize.Amount} {prize.Name} ({status})");
+    }
+}
+
+// Load next page
+if (history.Meta?.CurrentPage < history.Meta?.LastPage)
+{
+    var nextPage = await FunticoSDK.Instance.GetTournamentsHistory(page: 2, perPage: 10);
+}
+```
+
+---
+
 ## Client Session Methods
 
 Use these methods in **client builds** for session management and reconnection.
@@ -1784,6 +2265,166 @@ public class MyErrorHandler : IErrorHandler
     {
         Debug.LogError($"{errorTitle}: {errorMessage}");
     }
+}
+```
+
+---
+
+### Complete Tournament Flow Example
+
+```csharp
+using System;
+using System.Collections.Generic;
+using FunticoGamesSDK;
+using FunticoGamesSDK.ViewModels;
+using FunticoGamesSDK.APIModels;
+using Cysharp.Threading.Tasks;
+using Newtonsoft.Json;
+using UnityEngine;
+
+public class TournamentFlowExample : MonoBehaviour
+{
+    private Guid currentTournamentId;
+    private string currentSaveScoreId;
+    private int currentScore = 0;
+
+    // ===== 1. BROWSE TOURNAMENTS =====
+    public async UniTask LoadTournaments()
+    {
+        List<TournamentViewModel> tournaments = await FunticoSDK.Instance.GetTournaments(
+            filter: TournamentsFilterEnum.OnGoing
+        );
+
+        foreach (var t in tournaments)
+        {
+            Debug.Log($"{t.Name} | Entries: {t.EntriesCount}/{t.MaxEntries} | Joined: {t.IsJoined}");
+        }
+    }
+
+    // ===== 2. VIEW PRIZES =====
+    public async UniTask ShowPrizes(Guid tournamentId)
+    {
+        TournamentPrizesViewModel prizes = await FunticoSDK.Instance.GetPrizes(tournamentId);
+
+        foreach (var place in prizes.Places)
+        {
+            string rewards = string.Join(", ", place.Prizes.ConvertAll(p => $"{p.Amount} {p.Name}"));
+            Debug.Log($"Place #{place.Place}: {rewards}");
+        }
+    }
+
+    // ===== 3. JOIN TOURNAMENT =====
+    public async UniTask OnJoinButtonClick(Guid tournamentId)
+    {
+        currentTournamentId = tournamentId;
+
+        // Optionally choose a community
+        var communities = await FunticoSDK.Instance.GetTournamentCommunities(tournamentId);
+        Guid? communityId = communities.Count > 0 ? communities[0].Uuid : (Guid?)null;
+
+        bool joined = await FunticoSDK.Instance.JoinTournament(tournamentId, communityId);
+
+        if (joined)
+        {
+            Debug.Log("Joined tournament successfully!");
+            ShowPlayButton();
+        }
+        else
+        {
+            Debug.LogError("Failed to join tournament");
+        }
+    }
+
+    // ===== 4. ENTER TOURNAMENT (start a game attempt) =====
+    public async UniTask OnPlayButtonClick()
+    {
+        TournamentEnterData enterData = await FunticoSDK.Instance.EnterTournament(currentTournamentId);
+
+        if (enterData != null)
+        {
+            currentSaveScoreId = enterData.LocalTournamentUuid;
+            Debug.Log($"Entered! SaveScore ID: {currentSaveScoreId}");
+            StartGameplay();
+        }
+        else
+        {
+            Debug.LogError("Failed to enter tournament");
+        }
+    }
+
+    // ===== 5. GAMEPLAY =====
+    private void StartGameplay()
+    {
+        currentScore = 0;
+        // Start game logic...
+    }
+
+    public void OnScoreChanged(int newScore)
+    {
+        currentScore = newScore;
+    }
+
+    // ===== 6. SUBMIT RESULT (client build) =====
+    public async void OnGameComplete(bool success)
+    {
+        var customData = JsonConvert.SerializeObject(new
+        {
+            timeSeconds = 120,
+            levelReached = 5
+        });
+
+        bool submitted = await FunticoSDK.Instance.ResultTournament_Client(
+            currentTournamentId,
+            currentSaveScoreId,
+            score: currentScore,
+            isSuccess: success,
+            customData: customData
+        );
+
+        if (submitted)
+        {
+            Debug.Log("Result submitted!");
+            await ShowLeaderboard();
+        }
+        else
+        {
+            Debug.LogError("Failed to submit result");
+        }
+    }
+
+    // ===== 7. VIEW LEADERBOARD =====
+    private async UniTask ShowLeaderboard()
+    {
+        TournamentLeaderboardViewModel leaderboard =
+            await FunticoSDK.Instance.GetTournamentLeaderboard(currentTournamentId);
+
+        if (leaderboard == null) return;
+
+        Debug.Log($"Total players: {leaderboard.TotalPlayers}");
+
+        if (leaderboard.CurrentPlayer != null)
+            Debug.Log($"My rank: #{leaderboard.CurrentPlayer.Place}, score: {leaderboard.CurrentPlayer.Score}");
+
+        foreach (var player in leaderboard.Players)
+            Debug.Log($"#{player.Place} {player.UserName} — {player.Score}");
+    }
+
+    // ===== 8. VIEW HISTORY =====
+    public async UniTask ShowHistory()
+    {
+        TournamentHistoryViewModel history =
+            await FunticoSDK.Instance.GetTournamentsHistory(page: 1, perPage: 10);
+
+        Debug.Log($"Total tournaments played: {history.Meta?.Total}");
+
+        foreach (var entry in history.Entries)
+        {
+            Debug.Log($"{entry.TournamentName} — Place #{entry.LeaderboardPlace}, Best score: {entry.BestScore}");
+        }
+    }
+
+    // Helper stubs
+    private void ShowPlayButton() { /* Show UI */ }
 }
 ```
 
