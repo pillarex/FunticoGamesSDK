@@ -109,7 +109,7 @@ namespace FunticoGamesSDK.MatchmakingProviders
 		{
 			DisposeConnection();
 
-			var hubUrl = APIConstants.WithQuery(APIConstants.MATCHMAKER_HUB, $"gameKey={_publicGameKey}");
+			var hubUrl = APIConstants.WithQuery(APIConstants.MATCHMAKER_HUB, $"gameKey={Uri.EscapeDataString(_publicGameKey)}");
 			var userToken = _authDataProvider.GetUserToken();
 			var headers = new Dictionary<string, string>
 			{
