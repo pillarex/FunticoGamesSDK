@@ -113,7 +113,7 @@ namespace FunticoGamesSDK.MatchmakingProviders
 			var userToken = _authDataProvider.GetUserToken();
 			var headers = new Dictionary<string, string>
 			{
-				// { "X-User-Key", _publicGameKey },
+				{ "X-User-Key", _publicGameKey },
 				{ "X-Client-Session-Id", _clientSessionId }
 			};
 
