@@ -11,7 +11,8 @@ Complete reference guide for all public methods in Funtico SDK.
 5. [Special Tournaments Methods](#special-tournaments-methods)
 6. [Client Session Methods](#client-session-methods)
 7. [Server Session Methods](#server-session-methods)
-8. [Usage Examples](#usage-examples)
+8. [Hall of Fame Methods](#hall-of-fame-methods)
+9. [Usage Examples](#usage-examples)
 
 ---
 
@@ -1992,6 +1993,81 @@ FunticoSDK.Instance.RecordEvent_Server(
     JsonConvert.SerializeObject(eventData)
 );
 #endif
+```
+
+---
+
+## Hall of Fame Methods
+
+### `GetHallOfFame`
+
+Gets the global or monthly Hall of Fame leaderboard with optional game mode filtering.
+
+**Signature:**
+```csharp
+public UniTask<HallOfFameResponse> GetHallOfFame(
+    HallOfFamePeriodMode mode, 
+    int page, 
+    int limit,
+    HallOfFameGameModeFilter gameMode)
+```
+
+**Parameters:**
+- `mode` - Period filter (`HallOfFamePeriodMode.Global` or `HallOfFamePeriodMode.Monthly`)
+- `page` - Page number for pagination (1-based)
+- `limit` - Maximum items per page
+- `gameMode` - Game mode filter (`HallOfFameGameModeFilter.All`, `HallOfFameGameModeFilter.SpecialTournament`, `HallOfFameGameModeFilter.Rooms`, or `HallOfFameGameModeFilter.Practice`)
+
+**Returns:** `UniTask<HallOfFameResponse>` - Leaderboard response containing player entries, pagination details, and the current player entry.
+
+**Usage:**
+```csharp
+HallOfFameResponse response = await FunticoSDK.Instance.GetHallOfFame(
+    HallOfFamePeriodMode.Monthly,
+    page: 1,
+    limit: 10,
+    HallOfFameGameModeFilter.Rooms
+);
+
+if (response != null)
+{
+    Debug.Log($"Total Players in Hall of Fame: {response.TotalPlayers}");
+    foreach (var player in response.Leaderboard)
+    {
+        Debug.Log($"#{player.Rank} {player.DisplayName} — Points: {player.TotalPoints}");
+    }
+}
+```
+
+---
+
+### `GetHallOfFameDistribution`
+
+Gets the prize pool distribution tiers for monthly/ongoing leaderboards.
+
+**Signature:**
+```csharp
+public UniTask<HOFViewModel> GetHallOfFameDistribution()
+```
+
+**Returns:** `UniTask<HOFViewModel>` - Distribution list showing place ranges and rewarded prizes.
+
+**Usage:**
+```csharp
+HOFViewModel distribution = await FunticoSDK.Instance.GetHallOfFameDistribution();
+
+if (distribution != null)
+{
+    foreach (var item in distribution.Items)
+    {
+        string range = string.IsNullOrEmpty(item.Range) ? item.Place.ToString() : item.Range;
+        Debug.Log($"Place range: {range}");
+        foreach (var prize in item.Prizes)
+        {
+            Debug.Log($"  Prize: {prize.Amount} (Sprite available)");
+        }
+    }
+}
 ```
 
 ---

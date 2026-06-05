@@ -92,6 +92,14 @@ namespace FunticoGamesSDK
 
         #endregion
 
+        #region HallOfFame
+
+        public static string Get_Hall_Of_Fame_Global => API + "/HallOfFame/global";
+        public static string Get_Hall_Of_Fame_Monthly => API + "/HallOfFame/monthly";
+        public static string Get_Hall_Of_Fame_Distribution => API + "/HallOfFame/distribution";
+
+        #endregion
+
         #region Session
 
         #region Client

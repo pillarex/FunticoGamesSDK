@@ -2,6 +2,7 @@ using System;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.AssetsProvider;
 using FunticoGamesSDK.NetworkUtils;
+using FunticoGamesSDK.HallOfFameProviders;
 
 namespace FunticoGamesSDK
 {
@@ -18,6 +19,7 @@ namespace FunticoGamesSDK
 		private string _userToken;
 		private string _sessionId;
 		private IErrorHandler _errorHandler;
+		private IHallOfFameProvider _hallOfFameProvider;
 		
 		// Public accessors for optional modules
 		public string PublicGameKey => _publicGameKey;
@@ -43,6 +45,7 @@ namespace FunticoGamesSDK
 			SetupClientSessionManager(_userDataService, _privateGameKey);
 			SetupRoomsProvider(privateGameKey, _userDataService, _authDataProvider, _clientSessionManager, _serverSessionManager, _errorHandler);
 			SetupTournamentsProvider();
+			SetupHallOfFameProvider();
 			HTTPClient.Setup(publicGameKey, privateGameKey, _sessionId, _authDataProvider, errorHandler);
 			await WarmupServices();
 		}

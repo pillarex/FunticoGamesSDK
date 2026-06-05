@@ -418,10 +418,68 @@ public class SetupSDK : MonoBehaviour
         GUILayout.EndScrollView();
         GUILayout.EndArea();
         
+        // Draw Hall of Fame test buttons
+        DrawHallOfFameControls();
+        
 #if USE_FUNTICO_MATCHMAKING
         // Matchmaking controls
         DrawMatchmakingControls();
 #endif
+    }
+
+    private void DrawHallOfFameControls()
+    {
+        GUILayout.BeginArea(new Rect(Screen.width - 310, 220, 300, 150));
+        GUILayout.BeginVertical(GUI.skin.box);
+        
+        GUILayout.Label("Hall of Fame Tests", GUI.skin.box, GUILayout.Width(280), GUILayout.Height(30));
+        GUILayout.Space(5);
+
+        if (GUILayout.Button("Get HOF Global", GUILayout.Height(35)))
+        {
+            TestGetHOF().Forget();
+        }
+
+        if (GUILayout.Button("Get HOF Distribution", GUILayout.Height(35)))
+        {
+            TestGetHOFDistribution().Forget();
+        }
+
+        GUILayout.EndVertical();
+        GUILayout.EndArea();
+    }
+
+    private async UniTaskVoid TestGetHOF()
+    {
+        Debug.Log("Fetching Hall of Fame (Global)...");
+        var response = await FunticoSDK.Instance.GetHallOfFame(
+            FunticoGamesSDK.APIModels.HallOfFamePeriodMode.Global,
+            1,
+            10,
+            FunticoGamesSDK.APIModels.HallOfFameGameModeFilter.All
+        );
+        if (response != null)
+        {
+            Debug.Log($"HOF Global Loaded! Total Players: {response.TotalPlayers}. Top Player: {(response.Leaderboard != null && response.Leaderboard.Count > 0 ? response.Leaderboard[0].DisplayName : "None")}");
+        }
+        else
+        {
+            Debug.LogError("Failed to load HOF Global.");
+        }
+    }
+
+    private async UniTaskVoid TestGetHOFDistribution()
+    {
+        Debug.Log("Fetching Hall of Fame Distribution...");
+        var response = await FunticoSDK.Instance.GetHallOfFameDistribution();
+        if (response != null && response.Items != null)
+        {
+            Debug.Log($"HOF Distribution Loaded! Total Rows: {response.Items.Count}");
+        }
+        else
+        {
+            Debug.LogError("Failed to load HOF Distribution.");
+        }
     }
 
 #if USE_FUNTICO_MATCHMAKING

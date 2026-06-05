@@ -64,6 +64,7 @@ The main entry point implemented as a partial class split across multiple files:
 - `FunticoSDKRoomsService.cs` - Rooms/tournaments methods delegation
 - `FunticoSDKClientSessionManager.cs` - Client session management delegation
 - `FunticoSDKServerSessionManager.cs` - Server session management delegation
+- `FunticoSDKHallOfFameService.cs` - Hall of Fame methods delegation
 
 **Responsibilities:**
 - SDK initialization and configuration
@@ -88,6 +89,8 @@ Initialize()
    ├─> SetupServerSessionManager()
    ├─> SetupClientSessionManager()
    ├─> SetupRoomsProvider()
+   ├─> SetupTournamentsProvider()
+   ├─> SetupHallOfFameProvider()
    ├─> HTTPClient.Setup()
    └─> WarmupServices()
          │
@@ -490,6 +493,25 @@ UpdateSession_Client(json)
    └─> HTTP POST /api/session/update
          └─> Update existing session
 ```
+
+### 5. Hall of Fame Service
+
+**File**: `Assets/FunticoGamesSDK/HallOfFameProviders/HallOfFameProvider.cs`
+
+**Purpose**: Manages global/monthly leaderboards and prize distributions.
+
+**Class Hierarchy:**
+```
+IHallOfFameProvider (interface)
+   │
+   └─> HallOfFameProvider (implementation)
+```
+
+**Key Features:**
+- Retrieves paginated leaderboards for Global and Monthly intervals.
+- Handles filters for game modes (Special Tournaments, Rooms, Practice).
+- Dynamically loads reward assets and maps raw DTO structures to UI ViewModels.
+- UI components (leaderboards, distributions, and item views) are bundled under the `FunticoGamesSDK.UI.HallOfFame` namespace.
 
 ---
 

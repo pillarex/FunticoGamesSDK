@@ -4,7 +4,8 @@
     "references": [
         "UniTask",
         "Newtonsoft.Json",
-        "unity.webp"
+        "unity.webp",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
