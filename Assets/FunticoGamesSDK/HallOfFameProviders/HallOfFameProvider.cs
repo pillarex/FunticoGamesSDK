@@ -5,6 +5,7 @@ using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.APIModels.PrizesResponses;
 using FunticoGamesSDK.AssetsProvider;
 using FunticoGamesSDK.NetworkUtils;
+using FunticoGamesSDK.TextureResizer;
 using FunticoGamesSDK.ViewModels;
 using UnityEngine;
 using Logger = FunticoGamesSDK.Logging.Logger;
