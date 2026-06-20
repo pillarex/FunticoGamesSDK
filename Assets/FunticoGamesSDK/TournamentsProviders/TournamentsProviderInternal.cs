@@ -135,7 +135,7 @@ namespace FunticoGamesSDK.TournamentsProviders
                 Hash = hash,
             };
 
-            var url = $"{APIConstants.Post_Tournament_Result_Client}?saveScoreId={saveScoreId}";
+            var url = $"{APIConstants.Post_Tournament_Result_Client}?tournamentId={tournamentId}&saveScoreId={saveScoreId}";
             var success = await HTTPClient.Post_Short(url, request);
             if (!success)
                 Logger.LogError("Failed to submit encrypted tournament result");
