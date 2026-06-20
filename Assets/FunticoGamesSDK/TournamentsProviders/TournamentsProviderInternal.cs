@@ -91,7 +91,7 @@ namespace FunticoGamesSDK.TournamentsProviders
             if (!string.IsNullOrEmpty(password))
                 url += $"&password={Uri.EscapeDataString(password)}";
 
-            (bool success, string _) = await HTTPClient.Get<string>(url);
+            bool success = await HTTPClient.Get_Short(url);
             if (!success)
                 Logger.LogError("Failed to join tournament");
             return success;
