@@ -1225,7 +1225,7 @@ public UniTask<bool> JoinTournament(
 **Returns:** `UniTask<bool>` - `true` if successfully joined, `false` otherwise
 
 **Description:**
-Registers the authenticated user in a tournament. Call this once before the first `EnterTournament`. Does not start a game session — use `EnterTournament` when the player is ready to play.
+Registers the authenticated user in a tournament. Call this before every `EnterTournament`. Does not start a game session — use `EnterTournament` when the player is ready to play.
 
 **Usage:**
 ```csharp
