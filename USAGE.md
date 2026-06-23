@@ -396,6 +396,46 @@ bool canAfford = FunticoSDK.Instance.CanAffordFromCache(EntryFeeType.Tico, 500);
 
 ---
 
+### `CompletePractice`
+
+Submits the player's practice game result to the server.
+
+**Signature:**
+```csharp
+public UniTask<bool> CompletePractice(int score)
+```
+
+**Parameters:**
+- `score` - The player's final score in the practice game
+
+**Returns:** `UniTask<bool>` - `true` if the result was successfully recorded, `false` otherwise
+
+**Description:**
+Sends the practice game result to the server. The SDK automatically handles encryption and integrity hashing of the score data before sending. The server records the result in the Hall of Fame and increments the user's practice play count.
+
+**Usage:**
+```csharp
+// After practice game ends
+int finalScore = 1500;
+bool success = await FunticoSDK.Instance.CompletePractice(finalScore);
+
+if (success)
+{
+    Debug.Log("Practice result saved!");
+}
+else
+{
+    Debug.LogError("Failed to save practice result");
+}
+```
+
+**Important Notes:**
+- User data must be cached before calling (automatically done during SDK initialization)
+- Score data is AES-encrypted and HMAC-hashed for anti-cheat protection
+- The server records the result in Hall of Fame as a Practice game type
+
+---
+
 ## Rooms & Tournament Methods
 
 ### `GetTiers`

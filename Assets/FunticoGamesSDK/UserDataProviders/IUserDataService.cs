@@ -15,5 +15,6 @@ namespace FunticoGamesSDK.UserDataProviders
 		UniTask<UserData> GetUserData(bool useCache = true);
 		bool CanAffordFromCache(EntryFeeType type, int amount);
 		UniTask<bool> CanAfford(EntryFeeType type, int amount);
+		UniTask<bool> CompletePractice(int score);
 	}
 }

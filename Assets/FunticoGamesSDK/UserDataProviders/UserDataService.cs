@@ -4,7 +4,9 @@ using System.Linq;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.APIModels.UserData;
+using FunticoGamesSDK.Encryption;
 using FunticoGamesSDK.NetworkUtils;
+using Newtonsoft.Json;
 
 namespace FunticoGamesSDK.UserDataProviders
 {
@@ -12,12 +14,18 @@ namespace FunticoGamesSDK.UserDataProviders
 	{
 		#region Fields & Properties
 
+		private readonly string _privateKey;
 		private UserData Data { get; set; }
 		private BalanceResponse Balance { get; set; }
 		private List<VoucherData> Vouchers { get; set; } = new List<VoucherData>();
 		private List<VoucherStaticData> _vouchersStaticData;
 
 		#endregion
+
+		public UserDataService(string privateKey)
+		{
+			_privateKey = privateKey;
+		}
 
 		#region Public Methods
 
@@ -84,6 +92,29 @@ namespace FunticoGamesSDK.UserDataProviders
 		{
 			await GetUserData(false);
 			return CanAffordFromCache(type, amount);
+		}
+
+		public async UniTask<bool> CompletePractice(int score)
+		{
+			var userData = GetCachedUserData();
+			var practiceRequest = new CompletePracticeRequest()
+			{
+				Score = score
+			};
+
+			var userId = userData.UserId.ToString();
+			var gameDataKey = userId.PadLeft(8, '0').Substring(0, 8) + _privateKey.Substring(0, 8);
+			var encrypted = AESNonDynamic.Encrypt(JsonConvert.SerializeObject(practiceRequest), gameDataKey);
+			var hashSummary = HashUtils.HashString(encrypted, _privateKey.Substring(8));
+
+			var request = new CompletePracticeRequestEncoded()
+			{
+				Data = encrypted,
+				Hash = hashSummary
+			};
+
+			var success = await HTTPClient.Post_Short(APIConstants.COMPLETE_PRACTICE, request);
+			return success;
 		}
 
 		#endregion

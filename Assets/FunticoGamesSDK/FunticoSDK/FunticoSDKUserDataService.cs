@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.APIModels.UserData;
@@ -12,7 +12,7 @@ namespace FunticoGamesSDK
 
 		private void SetupUserDataService()
 		{
-			_userDataService = new UserDataService();
+			_userDataService = new UserDataService(_privateGameKey);
 		}
 
 		public List<VoucherData> GetCachedVouchers() => _userDataService.GetCachedVouchers();
@@ -31,5 +31,6 @@ namespace FunticoGamesSDK
 			_userDataService.CanAffordFromCache(type, amount);
 
 		public UniTask<bool> CanAfford(EntryFeeType type, int amount) => _userDataService.CanAfford(type, amount);
+		public UniTask<bool> CompletePractice(int score) => _userDataService.CompletePractice(score);
 	}
 }

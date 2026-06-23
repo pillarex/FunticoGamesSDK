@@ -54,6 +54,7 @@ namespace FunticoGamesSDK
         public static string USER_ALL_DATA => API + "/User/get-full-data";
         public static string VOUCHERS => API + "/User/vouchers";
         public static string VOUCHERS_STATIC_DATA => API + "/User/vouchers-data";
+        public static string COMPLETE_PRACTICE => API + "/User/complete-practice";
         #endregion
 
         #region Tournaments
