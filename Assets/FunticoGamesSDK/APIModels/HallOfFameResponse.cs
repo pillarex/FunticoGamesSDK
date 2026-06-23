@@ -42,6 +42,9 @@ namespace FunticoGamesSDK.APIModels
         [JsonProperty("AvatarBorder")]
         public string AvatarBorder { get; set; }
 
+        [JsonProperty("borderType")]
+        public string BorderType { get; set; }
+
         [JsonProperty("Country")]
         public string Country { get; set; }
 

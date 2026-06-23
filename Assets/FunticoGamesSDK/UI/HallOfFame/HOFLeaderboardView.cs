@@ -160,7 +160,6 @@ namespace FunticoGamesSDK.UI.HallOfFame
         private async void CheckForLoadMore(Vector2 scrollPosition)
         {
             if (_isLoading || Leaderboard == null) return;
-            // Якщо доскролили до низу (поріг 5%)
             if (scrollPosition.y <= 0.05f)
             {
                 await LoadNextPage(_tokenSource.Token);
@@ -170,7 +169,7 @@ namespace FunticoGamesSDK.UI.HallOfFame
         private async UniTask LoadNextPage(CancellationToken cToken)
         {
             var loadedItemsCount = _currentPage * limit;
-            if (Leaderboard.TotalPlayers <= loadedItemsCount) return; // Усі дані вже завантажені
+            if (Leaderboard.TotalPlayers <= loadedItemsCount) return;
             
             _currentPage++;
             var nextLeaderboard = await GetLeaderboard(_currentPage);
