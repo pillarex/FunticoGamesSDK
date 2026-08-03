@@ -13,12 +13,14 @@ namespace FunticoGamesSDK
 		}
 
 		public UniTask<HallOfFameResponse> GetHallOfFame(
-			HallOfFamePeriodMode mode, 
-			int page, 
+			HallOfFamePeriodMode mode,
+			int page,
 			int limit,
-			HallOfFameGameModeFilter gameMode)
+			HallOfFameGameModeFilter gameMode,
+			int? year = null,
+			int? month = null)
 		{
-			return _hallOfFameProvider.GetHallOfFame(mode, page, limit, gameMode);
+			return _hallOfFameProvider.GetHallOfFame(mode, page, limit, gameMode, year, month);
 		}
 
 		public UniTask<HOFViewModel> GetHallOfFameDistribution()

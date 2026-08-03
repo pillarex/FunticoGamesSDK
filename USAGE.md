@@ -2041,7 +2041,7 @@ FunticoSDK.Instance.RecordEvent_Server(
 
 ### `GetHallOfFame`
 
-Gets the global or monthly Hall of Fame leaderboard with optional game mode filtering.
+Gets the global or monthly Hall of Fame leaderboard with optional game mode filtering. For `Monthly`, an arbitrary past month can be requested via `year`/`month`.
 
 **Signature:**
 ```csharp
@@ -2049,7 +2049,9 @@ public UniTask<HallOfFameResponse> GetHallOfFame(
     HallOfFamePeriodMode mode, 
     int page, 
     int limit,
-    HallOfFameGameModeFilter gameMode)
+    HallOfFameGameModeFilter gameMode,
+    int? year = null,
+    int? month = null)
 ```
 
 **Parameters:**
@@ -2057,16 +2059,37 @@ public UniTask<HallOfFameResponse> GetHallOfFame(
 - `page` - Page number for pagination (1-based)
 - `limit` - Maximum items per page
 - `gameMode` - Game mode filter (`HallOfFameGameModeFilter.All`, `HallOfFameGameModeFilter.SpecialTournament`, `HallOfFameGameModeFilter.Rooms`, or `HallOfFameGameModeFilter.Practice`)
+- `year` - Calendar year to rank. `null` falls back to the current UTC year. Ignored when `mode` is `Global`.
+- `month` - Calendar month to rank, 1-12. `null` falls back to the current UTC month. Ignored when `mode` is `Global`.
 
 **Returns:** `UniTask<HallOfFameResponse>` - Leaderboard response containing player entries, pagination details, and the current player entry.
 
+**Throws:** `ArgumentOutOfRangeException` if `month` is outside 1-12.
+
+**Notes on month switching:**
+- `year` and `month` default independently. Passing only `month: 12` in January 2027 resolves to **December 2027**, not December 2026 — pass both values whenever you step outside the current month.
+- The response does not echo the period it was built from, so the game must keep its own "currently selected month" state and pass it into every call, including subsequent pages.
+- There is no lower bound on the server. Requesting a month before the game shipped returns an empty leaderboard rather than an error — clamp the range in your own switcher UI.
+- `GetHallOfFameDistribution` always returns the **current** prize tiers, not the tiers that were active in a past month.
+
 **Usage:**
 ```csharp
+// Current month
 HallOfFameResponse response = await FunticoSDK.Instance.GetHallOfFame(
     HallOfFamePeriodMode.Monthly,
     page: 1,
     limit: 10,
     HallOfFameGameModeFilter.Rooms
+);
+
+// A specific past month
+HallOfFameResponse july = await FunticoSDK.Instance.GetHallOfFame(
+    HallOfFamePeriodMode.Monthly,
+    page: 1,
+    limit: 10,
+    HallOfFameGameModeFilter.Rooms,
+    year: 2026,
+    month: 7
 );
 
 if (response != null)

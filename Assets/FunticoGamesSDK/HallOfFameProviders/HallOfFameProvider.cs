@@ -15,19 +15,44 @@ namespace FunticoGamesSDK.HallOfFameProviders
     public class HallOfFameProvider : IHallOfFameProvider
     {
         public async UniTask<HallOfFameResponse> GetHallOfFame(
-            HallOfFamePeriodMode mode, 
-            int page, 
+            HallOfFamePeriodMode mode,
+            int page,
             int limit,
-            HallOfFameGameModeFilter gameMode)
+            HallOfFameGameModeFilter gameMode,
+            int? year = null,
+            int? month = null)
         {
             var basicURL = mode switch {
                 HallOfFamePeriodMode.Global => APIConstants.Get_Hall_Of_Fame_Global,
                 HallOfFamePeriodMode.Monthly => APIConstants.Get_Hall_Of_Fame_Monthly,
                 _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
             };
-            
+
             var url = $"{basicURL}?page={page}&limit={limit}";
-            
+
+            // Період має сенс тільки для Monthly; на Global бекенд його все одно ігнорує
+            if (mode == HallOfFamePeriodMode.Monthly)
+            {
+                // Валідуємо тут, бо на бекенді невалідний місяць/рік падає в 500, а не в 400
+                if (month.HasValue && (month.Value < 1 || month.Value > 12))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(month), month.Value, "Month must be in the 1-12 range.");
+                }
+                if (year.HasValue && (year.Value < DateTime.MinValue.Year || year.Value > DateTime.MaxValue.Year))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(year), year.Value, "Year is outside the supported range.");
+                }
+
+                if (year.HasValue)
+                {
+                    url += $"&year={year.Value}";
+                }
+                if (month.HasValue)
+                {
+                    url += $"&month={month.Value}";
+                }
+            }
+
             if (gameMode != HallOfFameGameModeFilter.All)
             {
                 var backendMode = gameMode switch
