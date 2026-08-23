@@ -18,6 +18,9 @@ namespace FunticoGamesSDK.SessionsManagement
 
 		public List<string> GetCurrentSessionEvents_Client();
 
+		/// <summary>Clears only the recorded event log; the session itself (if any) stays open.</summary>
+		public void ClearSessionEvents_Client();
+
 		public void RecordEvent_Client(string eventInfo);
 	}
 }

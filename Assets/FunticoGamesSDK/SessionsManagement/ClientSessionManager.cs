@@ -82,6 +82,8 @@ namespace FunticoGamesSDK.SessionsManagement
 
 		public List<string> GetCurrentSessionEvents_Client() => _sessionLogs;
 
+		public void ClearSessionEvents_Client() => _sessionLogs.Clear();
+
 		public void RecordEvent_Client(string eventInfo) => _sessionLogs.Add(eventInfo);
 
 		private string GetEncryptionKey()

@@ -101,6 +101,15 @@ namespace FunticoGamesSDK
 
         #endregion
 
+        #region Campaign
+
+        public static string Get_Campaign_Availability => API + "/Campaign/availability";
+        public static string Get_Campaign_Levels => API + "/Campaign/levels";
+        public static string Post_Campaign_Start_Level => API + "/Campaign/start-level";
+        public static string Post_Campaign_Complete_Level => API + "/Campaign/complete-level";
+
+        #endregion
+
         #region Session
 
         #region Client

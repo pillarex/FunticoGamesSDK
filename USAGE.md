@@ -12,7 +12,8 @@ Complete reference guide for all public methods in Funtico SDK.
 6. [Client Session Methods](#client-session-methods)
 7. [Server Session Methods](#server-session-methods)
 8. [Hall of Fame Methods](#hall-of-fame-methods)
-9. [Usage Examples](#usage-examples)
+9. [Campaign Methods](#campaign-methods)
+10. [Usage Examples](#usage-examples)
 
 ---
 
@@ -1814,6 +1815,25 @@ foreach (string eventJson in events)
 
 ---
 
+### `ClearSessionEvents_Client`
+
+Clears only the recorded event log; the session itself (if any) stays open.
+
+**Signature:**
+```csharp
+public void ClearSessionEvents_Client()
+```
+
+**Description:**
+Empties the list of events recorded via `RecordEvent_Client` without touching the session lifecycle. The Campaign module calls this automatically after a successful `CompleteCampaignLevel` (the events were delivered in that submission). You normally don't need to call it manually — sessions closed via `FinishRoomSession_Client` clear the log as part of closing.
+
+**Usage:**
+```csharp
+FunticoSDK.Instance.ClearSessionEvents_Client();
+```
+
+---
+
 ### `RecordEvent_Client`
 
 Records a custom event during the game session, you need to use it, so we can restore user progression by proccessing those events.
@@ -2132,6 +2152,345 @@ if (distribution != null)
     }
 }
 ```
+
+---
+
+## Campaign Methods
+
+The Campaign module provides a linear single-player level progression: levels unlock one after another, each completion is graded with stars **computed server-side** from the metrics you submit, and rewards are granted automatically.
+
+### `GetCampaignAvailability`
+
+Checks whether a campaign is configured for this game.
+
+**Signature:**
+```csharp
+public UniTask<CampaignAvailabilityResponse> GetCampaignAvailability(bool useCache = true)
+```
+
+**Parameters:**
+- `useCache` - If `true`, returns cached data when available; if `false`, always fetches fresh data from server
+
+**Returns:** `UniTask<CampaignAvailabilityResponse>` - Campaign availability info
+
+**CampaignAvailabilityResponse Properties:**
+- `IsAvailable` (bool) - Whether a campaign exists for this game
+- `LevelCount` (int) - Total number of levels
+- `MaxStars` (int) - Maximum stars obtainable across the whole campaign
+
+**Usage:**
+```csharp
+CampaignAvailabilityResponse availability = await FunticoSDK.Instance.GetCampaignAvailability();
+
+if (availability.IsAvailable)
+{
+    ShowCampaignButton($"Campaign: {availability.LevelCount} levels");
+}
+```
+
+---
+
+### `GetCachedCampaignAvailability`
+
+Gets cached campaign availability instantly without any network call.
+
+**Signature:**
+```csharp
+public CampaignAvailabilityResponse GetCachedCampaignAvailability()
+```
+
+**Returns:** `CampaignAvailabilityResponse` - Cached availability (or null if not fetched yet)
+
+---
+
+### `GetCampaignLevels`
+
+Gets the full level list with the player's per-level progress.
+
+**Signature:**
+```csharp
+public UniTask<CampaignLevelsResponse> GetCampaignLevels(bool useCache = true)
+```
+
+**Parameters:**
+- `useCache` - If `true`, returns cached data when available; if `false`, always fetches fresh data from server
+
+**Returns:** `UniTask<CampaignLevelsResponse>` - Level list with progress summary
+
+**CampaignLevelsResponse Properties:**
+- `IsAvailable` (bool) - Whether the campaign is available (empty campaign returns `false` with an empty `Levels` list)
+- `TotalLevels` (int) - Total number of levels
+- `CompletedLevels` (int) - Levels the player has completed
+- `TotalStarsEarned` (int) - Stars the player has earned so far
+- `MaxStars` (int) - Maximum obtainable stars
+- `Levels` (List\<CampaignLevelDto\>) - Ordered level list
+
+**CampaignLevelDto Properties:**
+- `LevelId` (Guid) - Level unique identifier
+- `Order` (int) - Position in the campaign
+- `Name` (string) - Level display name
+- `Description` (string) - Optional description
+- `Status` (int) - Raw status (0=Locked, 1=Unlocked, 2=Completed) — use `GetStatus()` for the typed `CampaignLevelStatus` enum
+- `BestStars` (int) - Best star result on this level
+- `BestMetrics` (Dictionary\<string, double\>) - Metrics of the best attempt (or null)
+- `LevelJsonData` (string) - Game-defined level config JSON. **Null while the level is Locked**
+- `StarRulesJson` (string) - Star grading rules JSON. **Null while the level is Locked**
+- `MinDurationSeconds` (int) - Minimum legal completion time
+- `ConfigVersion` (int) - Level config version
+- `Rewards` (List\<CampaignReward\>) - Rewards with their `RequiredStars` thresholds
+- `CompletedAt` (DateTime?) - When the level was first completed (or null)
+
+**Usage (level select rendering):**
+```csharp
+CampaignLevelsResponse campaign = await FunticoSDK.Instance.GetCampaignLevels();
+
+Debug.Log($"Progress: {campaign.CompletedLevels}/{campaign.TotalLevels}, stars {campaign.TotalStarsEarned}/{campaign.MaxStars}");
+
+foreach (var level in campaign.Levels)
+{
+    switch (level.GetStatus())
+    {
+        case CampaignLevelStatus.Locked:
+            RenderLockedLevel(level.Order, level.Name);
+            break;
+        case CampaignLevelStatus.Unlocked:
+            RenderPlayableLevel(level.Order, level.Name, stars: 0);
+            break;
+        case CampaignLevelStatus.Completed:
+            RenderPlayableLevel(level.Order, level.Name, stars: level.BestStars);
+            break;
+    }
+}
+```
+
+---
+
+### `GetCachedCampaignLevels`
+
+Gets cached campaign levels instantly without any network call.
+
+**Signature:**
+```csharp
+public CampaignLevelsResponse GetCachedCampaignLevels()
+```
+
+**Returns:** `CampaignLevelsResponse` - Cached levels (or null if not fetched yet)
+
+---
+
+### `GetCampaignLevelConfig<T>`
+
+Deserializes a level's `LevelJsonData` into your game-defined config type.
+
+**Signature:**
+```csharp
+public T GetCampaignLevelConfig<T>(CampaignLevelDto level)
+```
+
+**Parameters:**
+- `level` - Level DTO from `GetCampaignLevels`
+
+**Returns:** `T` - Deserialized level config
+
+**Description:**
+Convenience wrapper around `JsonConvert.DeserializeObject<T>(level.LevelJsonData)`. Throws `InvalidOperationException` with a clear message if the level is locked (`LevelJsonData` is null) — check `GetStatus()` before calling.
+
+**Usage:**
+```csharp
+public class MyLevelConfig
+{
+    public int EnemyCount { get; set; }
+    public float TimeLimit { get; set; }
+    public string TilemapId { get; set; }
+}
+
+if (level.GetStatus() != CampaignLevelStatus.Locked)
+{
+    MyLevelConfig config = FunticoSDK.Instance.GetCampaignLevelConfig<MyLevelConfig>(level);
+    BuildLevel(config);
+}
+```
+
+---
+
+### `GetCampaignStarRules`
+
+Parses a level's `StarRulesJson` for displaying star requirements in UI.
+
+**Signature:**
+```csharp
+public CampaignStarRules GetCampaignStarRules(CampaignLevelDto level)
+```
+
+**Parameters:**
+- `level` - Level DTO from `GetCampaignLevels`
+
+**Returns:** `CampaignStarRules` - Parsed rules, or `null` if the level is locked (rules hidden) or the JSON is unparsable
+
+**CampaignStarRules Properties:**
+- `Win` (List\<CampaignStarRuleCondition\>) - Conditions required to win the level at all
+- `Stars` (List\<CampaignStarTier\>) - Per-star condition tiers (`Star` number + its `Conditions`)
+
+**CampaignStarRuleCondition Properties:**
+- `Metric` (string) - Metric name the condition applies to
+- `Op` (string) - Comparison operator
+- `Value` (double) - Threshold value
+
+**Usage:**
+```csharp
+CampaignStarRules rules = FunticoSDK.Instance.GetCampaignStarRules(level);
+
+if (rules != null)
+{
+    foreach (var tier in rules.Stars)
+    {
+        string conditions = string.Join(" AND ", tier.Conditions.Select(c => $"{c.Metric} {c.Op} {c.Value}"));
+        Debug.Log($"{tier.Star} star(s): {conditions}");
+    }
+}
+```
+
+---
+
+### `StartCampaignLevel`
+
+Starts an attempt on an unlocked level.
+
+**Signature:**
+```csharp
+public UniTask<StartLevelResponse> StartCampaignLevel(Guid levelId)
+```
+
+**Parameters:**
+- `levelId` - Level unique identifier (`CampaignLevelDto.LevelId`)
+
+**Returns:** `UniTask<StartLevelResponse>` - Attempt data (or null if failed; error details shown via IErrorHandler)
+
+**StartLevelResponse Properties:**
+- `AttemptId` (Guid) - Attempt identifier (used internally by `CompleteCampaignLevel`)
+- `LevelId` (Guid) - Level being attempted
+- `ConfigVersion` (int) - Config version this attempt was started against
+- `StartedAt` (DateTime) - Server-side start timestamp
+
+**Description:**
+Creates a server-side attempt and tracks it inside the SDK. Call it right before gameplay begins — the server enforces a minimum completion time (`MinDurationSeconds`) counted from this call. Starting a new attempt replaces the previously tracked one.
+
+**Usage:**
+```csharp
+StartLevelResponse attempt = await FunticoSDK.Instance.StartCampaignLevel(level.LevelId);
+
+if (attempt != null)
+{
+    StartGameplay(level);
+}
+```
+
+---
+
+### `GetActiveCampaignAttempt`
+
+Gets the attempt currently tracked by the SDK.
+
+**Signature:**
+```csharp
+public StartLevelResponse GetActiveCampaignAttempt()
+```
+
+**Returns:** `StartLevelResponse` - Tracked attempt (or null if none is active)
+
+---
+
+### `AbandonCampaignAttempt`
+
+Clears the tracked attempt locally (no server call).
+
+**Signature:**
+```csharp
+public void AbandonCampaignAttempt()
+```
+
+**Description:**
+Use when the player quits a level without finishing. Local-only — the server-side attempt simply expires.
+
+---
+
+### `CompleteCampaignLevel`
+
+Completes the tracked attempt and submits gameplay metrics.
+
+**Signature:**
+```csharp
+public UniTask<CompleteLevelResponse> CompleteCampaignLevel(Dictionary<string, double> metrics)
+```
+
+**Parameters:**
+- `metrics` - Flat metric dictionary describing the play-through: **1-32 entries, key length 1-64, finite values. Fractional values are legal** (do not round or truncate)
+
+**Returns:** `UniTask<CompleteLevelResponse>` - Result (or null on failure — validation error, no active attempt, or network/server error)
+
+**CompleteLevelResponse Properties:**
+- `IsWin` (bool) - Whether the win conditions were met. **Losing is a normal response** (`IsWin=false`, `Stars=0`), not an error
+- `Stars` (int) - Stars earned this attempt (computed server-side)
+- `BestStars` (int) - Best stars on this level after this attempt
+- `IsNewBest` (bool) - Whether this attempt set a new best
+- `LevelCompletedFirstTime` (bool) - Whether this was the first completion of the level
+- `UnlockedLevelId` (Guid?) - The next level unlocked by this completion (or null)
+- `Rewards` (List\<CampaignReward\>) - Rewards from this completion
+- `RewardsGranted` (bool) - Whether rewards were actually granted
+- `TotalLevels` / `CompletedLevels` / `TotalStarsEarned` / `MaxStars` (int) - Updated campaign progress summary
+
+**Description:**
+Encrypts the metrics payload (AES + HMAC, keyed on the attempt id and the game's private key) and submits it. Stars are computed **server-side** from your metrics and the level's star rules — the client never decides stars. On success the tracked attempt is cleared, the availability/levels caches are invalidated so the next `GetCampaignLevels` reflects new statuses, and the recorded client-session event log is cleared (the events were delivered in this submission; the client session itself stays open). On failure the attempt is kept **only for network/5xx errors** so the call may be retried; if the server responds with `AttemptNotFound` or `CompletionTooFast` the server-side attempt is dead, so the SDK clears the tracked attempt automatically — start a new attempt with `StartCampaignLevel` instead of retrying.
+
+**Usage:**
+```csharp
+public async void OnLevelFinished(bool reachedExit, int coins, float timeSeconds, double accuracy)
+{
+    var metrics = new Dictionary<string, double>
+    {
+        ["reachedExit"] = reachedExit ? 1 : 0,
+        ["coins"] = coins,
+        ["timeSeconds"] = timeSeconds, // fractional values are legal
+        ["accuracy"] = accuracy
+    };
+
+    CompleteLevelResponse result = await FunticoSDK.Instance.CompleteCampaignLevel(metrics);
+
+    if (result == null)
+    {
+        // Attempt kept only for network/5xx errors (may retry);
+        // cleared automatically for AttemptNotFound/CompletionTooFast (start a new attempt)
+        if (FunticoSDK.Instance.GetActiveCampaignAttempt() != null)
+            ShowRetryButton();
+        else
+            ShowError("Failed to submit result");
+        return;
+    }
+
+    if (result.IsWin)
+    {
+        ShowWinScreen(result.Stars, result.IsNewBest);
+        if (result.UnlockedLevelId.HasValue)
+            Debug.Log($"Unlocked next level: {result.UnlockedLevelId}");
+    }
+    else
+    {
+        ShowLoseScreen(); // normal outcome, not an error
+    }
+
+    // Refresh level select — caches were invalidated automatically
+    var campaign = await FunticoSDK.Instance.GetCampaignLevels();
+    RenderLevelSelect(campaign);
+}
+```
+
+**Important Notes:**
+- Requires a preceding `StartCampaignLevel` in the same session — logs an error and returns null otherwise
+- Payload is AES-encrypted + HMAC-signed automatically — never pre-aggregate or fake metrics client-side
+- Completing faster than the level's `MinDurationSeconds` is rejected by the server (`CompletionTooFast`)
+- On failure the tracked attempt is kept **only for network/5xx errors**; on `AttemptNotFound` or `CompletionTooFast` it is cleared automatically (the server-side attempt is dead — retrying would fail forever)
+- On success the recorded client-session events (`RecordEvent_Client`) are cleared via `ClearSessionEvents_Client` — they were delivered with this submission; the client session itself is untouched
+- Server-side errors (`CampaignNotAvailable`, `LevelLocked`, `AttemptNotFound`, `InvalidSignature`, `InvalidMetrics`, `CompletionTooFast`) surface through your `IErrorHandler`
 
 ---
 

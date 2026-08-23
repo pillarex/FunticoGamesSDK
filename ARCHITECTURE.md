@@ -65,6 +65,7 @@ The main entry point implemented as a partial class split across multiple files:
 - `FunticoSDKClientSessionManager.cs` - Client session management delegation
 - `FunticoSDKServerSessionManager.cs` - Server session management delegation
 - `FunticoSDKHallOfFameService.cs` - Hall of Fame methods delegation
+- `FunticoSDKCampaignService.cs` - Campaign methods delegation
 
 **Responsibilities:**
 - SDK initialization and configuration
