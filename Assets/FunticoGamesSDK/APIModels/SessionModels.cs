@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace FunticoGamesSDK.APIModels
 {
@@ -7,6 +8,11 @@ namespace FunticoGamesSDK.APIModels
 	{
 		public string Data { get; set; }
 		public List<string> EventsList { get; set; }
+
+		// Saved with the checkpoint: a resumed run keeps what it had collected by then, and what it
+		// collected afterwards goes away together with the progress it has to replay.
+		[JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+		public Dictionary<string, int> Collected { get; set; }
 	}
 
 	public class SavedSessionResponse

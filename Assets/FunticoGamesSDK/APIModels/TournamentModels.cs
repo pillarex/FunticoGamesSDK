@@ -41,6 +41,9 @@ namespace FunticoGamesSDK.APIModels
         public int? Score { get; set; }
         public bool IsSuccess { get; set; }
         public string CustomData { get; set; }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public Dictionary<string, int> Collected { get; set; }
     }
 
     // Outer request body reuses RoomSaveScoreRequestEncrypted (same fields)

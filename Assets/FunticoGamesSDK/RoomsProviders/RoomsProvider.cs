@@ -118,12 +118,14 @@ namespace FunticoGamesSDK.RoomsProviders
 		public async UniTask<bool> FinishRoomSession_Client(string eventId, string sessionId, int score)
 		{
 			var events = _clientSessionManager.GetCurrentSessionEvents_Client();
+			var collected = _clientSessionManager.GetCurrentSessionCollected_Client();
 			var userData = UserDataService.GetCachedUserData();
 			var gameData = new RoomSaveScoreRequest()
 			{
 				GameEvents = events,
 				Score = score,
-				UserId = userData.UserId
+				UserId = userData.UserId,
+				Collected = collected.Count > 0 ? collected : null
 			};
 			
 			var gameDataKey = sessionId.Substring(0, 8) + PrivateKey.Substring(0, 8);
@@ -142,6 +144,12 @@ namespace FunticoGamesSDK.RoomsProviders
 
 			var success = await HTTPClient.Post_Short(url, data);
 			_clientSessionManager.CloseCurrentSession_Client();
+
+			// Closing clears the counts; a failed submit keeps them so that a retry still sends them.
+			if (!success)
+				foreach (var pair in collected)
+					_clientSessionManager.RecordCollected_Client(pair.Key, pair.Value);
+
 			return success;
 		}
 

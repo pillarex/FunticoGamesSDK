@@ -1,6 +1,7 @@
 using System;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
+using FunticoGamesSDK.SessionsManagement;
 using FunticoGamesSDK.UserDataProviders;
 using FunticoGamesSDK.ViewModels;
 
@@ -9,10 +10,12 @@ namespace FunticoGamesSDK.TournamentsProviders
     public class TournamentsProvider : TournamentsProviderInternal, ITournamentsProvider
     {
         private readonly IUserDataService _userDataService;
+        private readonly IClientSessionManager _clientSessionManager;
 
-        public TournamentsProvider(string privateKey, IUserDataService userDataService) : base(privateKey)
+        public TournamentsProvider(string privateKey, IUserDataService userDataService, IClientSessionManager clientSessionManager) : base(privateKey)
         {
             _userDataService = userDataService;
+            _clientSessionManager = clientSessionManager;
         }
 
         public async UniTask<bool> JoinTournament(Guid tournamentId, Guid? communityId = null, string password = null)
@@ -36,6 +39,15 @@ namespace FunticoGamesSDK.TournamentsProviders
         }
 
         public async UniTask<bool> ResultTournament_Client(Guid tournamentId, string saveScoreId, int? score, bool isSuccess, string customData = null)
-            => await SendTournamentResultClient(tournamentId, saveScoreId, score, isSuccess, customData);
+        {
+            var collected = _clientSessionManager.GetCurrentSessionCollected_Client();
+            var success = await SendTournamentResultClient(tournamentId, saveScoreId, score, isSuccess, customData, collected);
+
+            // Unlike the room call this does not close the session, so nothing else resets the counts.
+            if (success)
+                _clientSessionManager.ClearSessionCollected_Client();
+
+            return success;
+        }
     }
 }

@@ -13,7 +13,7 @@ namespace FunticoGamesSDK
 
         private void SetupTournamentsProvider()
         {
-            _tournamentsProvider = new TournamentsProvider(_privateGameKey, _userDataService);
+            _tournamentsProvider = new TournamentsProvider(_privateGameKey, _userDataService, _clientSessionManager);
         }
 
         public UniTask<List<TournamentViewModel>> GetTournaments(int page = 1, int perPage = 100, TournamentsFilterEnum? filter = null)

@@ -36,5 +36,11 @@ namespace FunticoGamesSDK
 		public void ClearSessionEvents_Client() => _clientSessionManager.ClearSessionEvents_Client();
 
 		public void RecordEvent_Client(string eventInfo) => _clientSessionManager.RecordEvent_Client(eventInfo);
+
+		public void RecordCollected_Client(string key, int count = 1) => _clientSessionManager.RecordCollected_Client(key, count);
+
+		public Dictionary<string, int> GetCurrentSessionCollected_Client() => _clientSessionManager.GetCurrentSessionCollected_Client();
+
+		public void ClearSessionCollected_Client() => _clientSessionManager.ClearSessionCollected_Client();
 	}
 }

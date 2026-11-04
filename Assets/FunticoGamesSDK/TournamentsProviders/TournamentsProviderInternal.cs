@@ -115,13 +115,14 @@ namespace FunticoGamesSDK.TournamentsProviders
             return response;
         }
 
-        protected async UniTask<bool> SendTournamentResultClient(Guid tournamentId, string saveScoreId, int? score, bool isSuccess, string customData)
+        protected async UniTask<bool> SendTournamentResultClient(Guid tournamentId, string saveScoreId, int? score, bool isSuccess, string customData, Dictionary<string, int> collected)
         {
             var payload = new TournamentSaveScorePayload
             {
                 Score = score,
                 IsSuccess = isSuccess,
                 CustomData = customData,
+                Collected = collected != null && collected.Count > 0 ? collected : null,
             };
 
             var gameDataKey = saveScoreId.Substring(0, 8) + PrivateKey.Substring(0, 8);

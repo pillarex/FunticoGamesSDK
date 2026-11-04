@@ -15,6 +15,7 @@ namespace FunticoGamesSDK.SessionsManagement
 	{
 		private readonly IUserDataService _userDataService;
 		private List<string> _sessionLogs = new List<string>();
+		private readonly Dictionary<string, int> _collected = new Dictionary<string, int>();
 		private SavedSessionResponse _currentSessionData;
 		private string _privateKey;
 
@@ -43,12 +44,19 @@ namespace FunticoGamesSDK.SessionsManagement
 			if (sessionModel == null)
 				return null;
 
-			_sessionLogs = sessionModel.EventsList ?? new List<string>(); 
+			_sessionLogs = sessionModel.EventsList ?? new List<string>();
+			_collected.Clear();
+			if (sessionModel.Collected != null)
+				foreach (var pair in sessionModel.Collected)
+					_collected[pair.Key] = pair.Value;
 			return sessionModel.Data;
 		}
 
 		public async UniTask<SavedSessionResponse> CreateSession_Client(string json, GameTypeEnum gameType, string eventId, string saveSessionId)
 		{
+			// Counts left by a run whose result never went through must not ride on this one.
+			_collected.Clear();
+
 			var encryptedData = EncryptCurrentSessionData(json);
 			encryptedData.GameType = (int) gameType;
 			encryptedData.SessionId = eventId;
@@ -77,6 +85,7 @@ namespace FunticoGamesSDK.SessionsManagement
 		public void CloseCurrentSession_Client()
 		{
 			_sessionLogs.Clear();
+			_collected.Clear();
 			_currentSessionData = null;
 		}
 
@@ -85,6 +94,22 @@ namespace FunticoGamesSDK.SessionsManagement
 		public void ClearSessionEvents_Client() => _sessionLogs.Clear();
 
 		public void RecordEvent_Client(string eventInfo) => _sessionLogs.Add(eventInfo);
+
+		public void RecordCollected_Client(string key, int count = 1)
+		{
+			if (string.IsNullOrEmpty(key) || count <= 0)
+			{
+				Logger.LogError($"RecordCollected_Client ignored an invalid call: key \"{key}\", count {count}.");
+				return;
+			}
+
+			_collected.TryGetValue(key, out var current);
+			_collected[key] = current + count;
+		}
+
+		public Dictionary<string, int> GetCurrentSessionCollected_Client() => new Dictionary<string, int>(_collected);
+
+		public void ClearSessionCollected_Client() => _collected.Clear();
 
 		private string GetEncryptionKey()
 		{
@@ -100,7 +125,8 @@ namespace FunticoGamesSDK.SessionsManagement
 			var data = new SessionModel()
 			{
 				Data = json,
-				EventsList = _sessionLogs
+				EventsList = _sessionLogs,
+				Collected = _collected.Count > 0 ? _collected : null
 			};
 
 			var encryptedData = new SavedSessionResponse()

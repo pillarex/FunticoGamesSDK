@@ -11,6 +11,9 @@ namespace FunticoGamesSDK.APIModels
 		public string? Ip { get; set; }
 		public long? GameManagedAward { get; set; }
 		public List<string> GameEvents { get; set; }
+
+		[JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+		public Dictionary<string, int> Collected { get; set; }
 	}
 
 	public class RoomSaveScoreRequestEncrypted

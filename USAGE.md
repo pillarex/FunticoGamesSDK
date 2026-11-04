@@ -1866,6 +1866,59 @@ public void OnPowerUpUsed(string powerUpName)
 
 ---
 
+### `RecordCollected_Client`
+
+Counts an item the player collected during the current run, such as a chest. The game only reports what was collected; what the player receives for it is set up on the platform.
+
+**Signature:**
+```csharp
+public void RecordCollected_Client(string key, int count = 1)
+```
+
+**Parameters:**
+- `key` - The reward key agreed for your game, for example `chest_1`. Other keys earn nothing.
+- `count` - How many to add. Default: `1`.
+
+**Usage:**
+```csharp
+public void OnChestCollected()
+{
+    FunticoSDK.Instance.RecordCollected_Client("chest_1");
+}
+```
+
+**Important Notes:**
+- Synchronous and local. The counts leave the client with the result of `FinishRoomSession_Client` or `ResultTournament_Client`, including when the run was lost (`isSuccess: false`).
+- Each key has a limit per run. Agree it together with the key, so that a normal run cannot exceed it.
+- The counts are saved with every `UpdateSession_Client` checkpoint and restored by `ReconnectToUnfinishedSession_Client`. Anything collected after the last checkpoint is rolled back with the rest of the run's progress.
+- `CreateSession_Client` resets the counts, so create the session before the run can collect anything.
+- A failed `FinishRoomSession_Client` or `ResultTournament_Client` keeps the counts, so a retry still sends them. `CompletePractice` and `CompleteCampaignLevel` do not send them: do not record anything in those modes.
+- An empty key or a non-positive count logs an error and is ignored.
+
+---
+
+### `GetCurrentSessionCollected_Client`
+
+Returns a copy of what the current run has collected so far, by reward key. Useful for a counter on the HUD or the results screen.
+
+**Signature:**
+```csharp
+public Dictionary<string, int> GetCurrentSessionCollected_Client()
+```
+
+---
+
+### `ClearSessionCollected_Client`
+
+Clears the collected counts without touching the session lifecycle. You normally don't need it: delivering a result and creating a session both clear them.
+
+**Signature:**
+```csharp
+public void ClearSessionCollected_Client()
+```
+
+---
+
 ## Server Session Methods
 
 Use these methods in **dedicated server builds** (with SERVER or UNITY_SERVER defines).
