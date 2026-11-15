@@ -116,6 +116,21 @@ namespace FunticoGamesSDK
 
         #endregion
 
+        #region Ghost
+
+        public static string Get_Ghost_Pools => API + "/Ghost/pools";
+        public static string Get_Ghost_Run => API + "/Ghost/run";
+        public static string Post_Ghost_Run_Start => API + "/Ghost/run/start";
+        public static string Post_Ghost_Run_Abandon => API + "/Ghost/run/abandon";
+        public static string Post_Ghost_Find => API + "/Ghost/find";
+        public static string Post_Ghost_Upload => API + "/Ghost/upload";
+        public static string Post_Ghost_Report => API + "/Ghost/report";
+        public static string Get_Ghost_Report_Summary => API + "/Ghost/report-summary";
+        public static string Get_Ghost_History => API + "/Ghost/history";
+        public static string Get_Ghost_Leaderboard => API + "/Ghost/leaderboard";
+
+        #endregion
+
         #region Session
 
         #region Client

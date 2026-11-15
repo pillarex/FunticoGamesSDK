@@ -48,6 +48,7 @@ namespace FunticoGamesSDK
 			SetupHallOfFameProvider();
 			SetupCampaignProvider();
 			SetupInventoryProvider();
+			SetupGhostProvider();
 			HTTPClient.Setup(publicGameKey, privateGameKey, _sessionId, _authDataProvider, errorHandler);
 			await WarmupServices();
 		}

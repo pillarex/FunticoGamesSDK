@@ -14,7 +14,8 @@ Complete reference guide for all public methods in Funtico SDK.
 8. [Hall of Fame Methods](#hall-of-fame-methods)
 9. [Campaign Methods](#campaign-methods)
 10. [Inventory Methods](#inventory-methods)
-11. [Usage Examples](#usage-examples)
+11. [Ghost Matchmaking Methods](#ghost-matchmaking-methods)
+12. [Usage Examples](#usage-examples)
 
 ---
 
@@ -2696,6 +2697,471 @@ if (props?.Game != null)
     EquipToSlot(props.Game.Slot, item);
 }
 ```
+
+---
+
+## Ghost Matchmaking Methods
+
+The Ghost module is asynchronous matchmaking: instead of a live opponent, the player fights a stored copy ("ghost") of another player's ship, or a bot. The game uploads the player's own ship as a JSON string that neither the SDK nor the server interprets, and other players fight it while the player is away. The game plays each fight locally and reports the outcome once; ratings are kept per pool and per season.
+
+A typical flow:
+1. `GetGhostPools` - read the pool keys, their attributes and the player's rating
+2. For pools with `HasRun`: `GetGhostRun` to resume, or `StartGhostRun`
+3. `FindGhostOpponent` - get a match with the opponent's ship (optionally storing the player's ship in the same call)
+4. Play the fight, then `ReportGhostResult` with the match id
+5. Repeat 3-4 until the run finishes
+6. In the menu: `GetGhostReportSummary` ("your ship won 12 fights while you were away"), `GetGhostHistory` and `GetGhostLeaderboard` (the season ranking)
+
+Every method calls the server (nothing is cached) and returns null on failure; `GetLastGhostError` then says why. Failures are logged and do not show an `IErrorHandler` popup.
+
+### `GetGhostPools`
+
+Gets the game's ghost pools.
+
+**Signature:**
+```csharp
+public UniTask<GhostPoolsResponse> GetGhostPools()
+```
+
+**Returns:** `UniTask<GhostPoolsResponse>` - `Pools` (List\<GhostPool\>), or null on failure
+
+**GhostPool Properties:**
+- `Key` (string) - Pool key; pass it as `pool` to the other Ghost methods
+- `Name` (string) - Display name
+- `Partition` (string) - The current season, e.g. `"s3"`. Ships and ratings of different seasons never mix
+- `HasRun` (bool) - `true` when the pool plays runs: start a run, fight until a limit is reached, the run finishes. `false`: fight any time, no run needed
+- `MaxWins` / `MaxLosses` / `MaxRounds` (int?) - Run limits (null = no limit of that kind)
+- `Attributes` (List\<GhostPoolAttribute\>) - The attributes that describe a ship when searching or uploading
+- `Rating` (int) - The player's rating in the current season (the starting rating if the player has not fought yet)
+
+**GhostPoolAttribute Properties:**
+- `Name` (string) - Key to use in the `attributes` dictionary
+- `Min` / `Max` (int) - Allowed values, inclusive
+- `Exact` (bool) - `true` when opponents always have exactly the same value
+- `Bind` (string) - null, or one of `GhostAttributeBinds` (`"Run.Round"`, `"Run.Wins"`, `"Run.Losses"`): the server fills the value from the player's run, so leave it out of `attributes`
+
+**Usage:**
+```csharp
+GhostPoolsResponse pools = await FunticoSDK.Instance.GetGhostPools();
+if (pools == null)
+{
+    Debug.LogError($"Ghost pools failed: {FunticoSDK.Instance.GetLastGhostError()?.Error}");
+    return;
+}
+
+foreach (GhostPool pool in pools.Pools)
+{
+    Debug.Log($"{pool.Key} ({pool.Name}) season {pool.Partition}, rating {pool.Rating}, runs: {pool.HasRun}");
+}
+```
+
+---
+
+### `GetGhostRun`
+
+Gets the player's active run in a pool and its open match, if any. Use it to resume after a reload or a crash.
+
+**Signature:**
+```csharp
+public UniTask<GhostRunResponse> GetGhostRun(string pool)
+```
+
+**Parameters:**
+- `pool` - Pool key (`GhostPool.Key`)
+
+**Returns:** `UniTask<GhostRunResponse>` - The run and its open match, or null on failure
+
+**GhostRunResponse Properties:**
+- `Run` (GhostRun) - The active run; null when the player has none. It may read `"Finished"` when an expired match has just ended it
+- `OpenMatch` (GhostMatch) - The run's issued but unreported match (see `FindGhostOpponent`); null when there is none
+
+In pools without runs both are always null; call `FindGhostOpponent` again to get an open match back.
+
+**GhostRun Properties:**
+- `RunId` (Guid) - Run identifier
+- `Pool` / `Partition` (string) - Pool key and season of the run
+- `Status` (string) - `"Active"`, `"Finished"` or `"Abandoned"`; `GetStatus()` returns the typed `GhostRunStatus?`
+- `Round` (int) - Current round (`Fights + 1`)
+- `Fights` / `Wins` / `Losses` / `Draws` (int) - Fights so far
+- `MaxWins` / `MaxLosses` / `MaxRounds` (int?) - The pool's run limits
+- `StartedAt` (DateTime) / `FinishedAt` (DateTime?) - UTC timestamps
+
+**Usage:**
+```csharp
+GhostRunResponse state = await FunticoSDK.Instance.GetGhostRun("arena");
+if (state?.OpenMatch != null)
+{
+    ResumeFight(state.OpenMatch); // the same opponent as before the reload
+}
+else if (state?.Run != null)
+{
+    ShowRunScreen(state.Run.Round, state.Run.Wins, state.Run.Losses);
+}
+```
+
+---
+
+### `StartGhostRun`
+
+Starts a run in a pool, or returns the active one if the player already has it.
+
+**Signature:**
+```csharp
+public UniTask<GhostRunResponse> StartGhostRun(string pool)
+```
+
+**Parameters:**
+- `pool` - Pool key of a pool with `HasRun`
+
+**Returns:** `UniTask<GhostRunResponse>` - The active run (and its open match, if the run was already in progress), or null on failure (`RunNotSupported` for a pool without runs)
+
+**Description:**
+Safe to call repeatedly: an existing active run is returned instead of starting another. In a pool with `HasRun`, `FindGhostOpponent` and run-bound attributes need an active run. The run finishes on the server when one of its limits is reached; check `Run.GetStatus()` in the `ReportGhostResult` response.
+
+---
+
+### `AbandonGhostRun`
+
+Gives up the player's active run.
+
+**Signature:**
+```csharp
+public UniTask<GhostRunResponse> AbandonGhostRun(string pool)
+```
+
+**Parameters:**
+- `pool` - Pool key
+
+**Returns:** `UniTask<GhostRunResponse>` - `Run` is the closed run (`Status` `"Abandoned"`, or `"Finished"` if closing its open match ended it), or null on failure (`RunNotActive` when there is no active run)
+
+**Description:**
+An open match of the run is closed as unreported, exactly as if it had expired, so abandoning cannot be used to skip an unwanted opponent.
+
+---
+
+### `FindGhostOpponent`
+
+Finds an opponent and issues a match.
+
+**Signature:**
+```csharp
+public UniTask<GhostFindResponse> FindGhostOpponent(string pool, Dictionary<string, int> attributes,
+    string mySnapshotJson = null, IEnumerable<Guid> exclude = null, bool allowBots = true)
+```
+
+**Parameters:**
+- `pool` - Pool key
+- `attributes` - Attribute values by name (`GhostPoolAttribute.Name`), each within `Min..Max`. Leave out attributes with a `Bind`; if you send one, it must equal the run's value (`RunStateMismatch` otherwise)
+- `mySnapshotJson` - Optional: the player's own ship as a JSON string, stored in the pool in the same request (saves a separate `UploadGhostSnapshot` call)
+- `exclude` - Optional: snapshot ids (`GhostMatch.SnapshotId`) the player should not face, e.g. the last opponents. The first 20 distinct ids are sent
+- `allowBots` - `false` forbids bot opponents for this search; `true` (default) allows them where the pool does
+
+**Returns:** `UniTask<GhostFindResponse>` - The match, or null on failure. `NoOpponent` in `GetLastGhostError` is a **normal outcome** (nobody matched and no bot was available), not a fault
+
+**GhostFindResponse Properties:**
+- `Match` (GhostMatch) - The issued match
+- `Run` (GhostRun) - The run after the search; null in pools without runs
+- `UploadedSnapshotId` (Guid?) - Id of the player's ship stored by this request; null when no ship was sent
+
+**GhostMatch Properties:**
+- `MatchId` (Guid) - Pass it to `ReportGhostResult`
+- `SnapshotId` (Guid) - Id of the opponent's stored ship (what `exclude` takes)
+- `SnapshotJson` (string) - The opponent's ship **exactly as it was uploaded**, byte for byte
+- `SnapshotSha256` (string) - Lowercase hex SHA-256 of the UTF-8 bytes of `SnapshotJson`
+- `IsBot` (bool) - Whether the opponent is a bot
+- `OwnerName` / `OwnerAvatarUrl` / `OwnerBorderUrl` (string) - Display data of the ship's owner
+- `OwnerRating` (int) - The opponent's rating
+- `PlayerRating` (int) - The player's rating at the time of the match
+- `OpponentAttributes` (Dictionary\<string, int\>) - The opponent ship's attribute values
+- `Step` (string) - Name of the search step that found the opponent (`"Fallback"` for a fallback bot)
+- `ExpiresAt` (DateTime) - Report the fight before this time (UTC)
+
+**Description:**
+One match is open at a time: searching again before reporting returns **the same open match**, so a reload or a second search cannot replace an unwanted opponent. If the fight is not reported before `ExpiresAt`, the match expires; depending on the pool, an expired match may count as a loss. The SDK and the server never parse or rewrite the ship: deserialize `SnapshotJson` into your own type with `JsonConvert.DeserializeObject<T>`.
+
+**Usage:**
+```csharp
+var attributes = new Dictionary<string, int>
+{
+    ["Tier"] = 3,
+    ["ShipClass"] = 2
+    // "Round" is bound to the run (Bind = "Run.Round"): the server fills it in
+};
+
+string myShip = JsonConvert.SerializeObject(BuildMyShip());
+
+GhostFindResponse found = await FunticoSDK.Instance.FindGhostOpponent("arena", attributes, myShip, _recentOpponents);
+if (found == null)
+{
+    GhostErrorResponse error = FunticoSDK.Instance.GetLastGhostError();
+    if (error?.Error == GhostErrorCodes.NoOpponent)
+        ShowMessage("No opponent right now. Try again in a moment.");
+    else
+        HandleGhostError(error); // see GetLastGhostError
+    return;
+}
+
+GhostMatch match = found.Match;
+_recentOpponents.Add(match.SnapshotId);
+MyShip opponent = JsonConvert.DeserializeObject<MyShip>(match.SnapshotJson);
+StartFight(match.MatchId, opponent, match.OwnerName, match.IsBot);
+```
+
+---
+
+### `UploadGhostSnapshot`
+
+Stores the player's ship in a pool without searching for an opponent.
+
+**Signature:**
+```csharp
+public UniTask<GhostUploadResponse> UploadGhostSnapshot(string pool, Dictionary<string, int> attributes, string snapshotJson)
+```
+
+**Parameters:**
+- `pool` - Pool key
+- `attributes` - Attribute values of the ship, as in `FindGhostOpponent`
+- `snapshotJson` - The ship as a JSON string. Opponents receive it exactly as sent
+
+**Returns:** `UniTask<GhostUploadResponse>` - Or null on failure (`InvalidSnapshot` when the ship is missing, not valid JSON, or larger than the pool allows)
+
+**GhostUploadResponse Properties:**
+- `SnapshotId` (Guid) - Id of the stored ship
+- `Sha256` (string) - Lowercase hex SHA-256 of the UTF-8 bytes of the stored ship
+- `Partition` (string) - Season the ship was stored in
+
+**Description:**
+Use it when the player's ship changes outside a search, e.g. after building between fights. To store the ship right before a fight, pass it as `mySnapshotJson` to `FindGhostOpponent` instead.
+
+---
+
+### `ReportGhostResult`
+
+Reports the fight of a match.
+
+**Signature:**
+```csharp
+public UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null)
+```
+
+**Parameters:**
+- `matchId` - `GhostMatch.MatchId`
+- `outcome` - `GhostOutcome.Win`, `GhostOutcome.Loss` or `GhostOutcome.Draw`, from the player's point of view
+- `fightHash` - Optional: your hash of the fight (e.g. of its seed and inputs), kept with the match so the fight can be checked later. Up to 128 characters are kept
+
+**Returns:** `UniTask<GhostReportResponse>` - The result, or null on failure
+
+**GhostReportResponse Properties:**
+- `MatchId` (Guid) - The reported match
+- `Outcome` (string) - `"Win"`, `"Loss"` or `"Draw"`; `GetOutcome()` returns the typed `GhostOutcome?`
+- `PlayerRatingBefore` / `PlayerRatingAfter` (int) - The player's rating change
+- `OpponentRatingBefore` / `OpponentRatingAfter` (int) - The opponent's rating change
+- `Run` (GhostRun) - The run after the fight (null in pools without runs). When a limit was reached, `Run.GetStatus()` is `GhostRunStatus.Finished`
+
+**Description:**
+The report is encrypted and signed with the game's private key (AES + HMAC, keyed on the match id), as in `CompleteCampaignLevel`. A match is reported **once**: reporting it again returns the first result, so after a network error just call `ReportGhostResult` again with the same arguments. A report after `ExpiresAt` fails with `MatchExpired`.
+
+**Usage:**
+```csharp
+public async void OnFightFinished(Guid matchId, bool won, bool draw, string fightHash)
+{
+    GhostOutcome outcome = draw ? GhostOutcome.Draw : won ? GhostOutcome.Win : GhostOutcome.Loss;
+    GhostReportResponse result = await FunticoSDK.Instance.ReportGhostResult(matchId, outcome, fightHash);
+
+    if (result == null)
+    {
+        GhostErrorResponse error = FunticoSDK.Instance.GetLastGhostError();
+        if (error?.Error == GhostErrorCodes.RequestFailed)
+            ShowRetryButton(); // retrying the same report is safe
+        else
+            HandleGhostError(error);
+        return;
+    }
+
+    ShowRatingChange(result.PlayerRatingBefore, result.PlayerRatingAfter);
+
+    if (result.Run != null && result.Run.GetStatus() == GhostRunStatus.Finished)
+        ShowRunSummary(result.Run.Wins, result.Run.Losses, result.Run.Draws);
+    else
+        GoToNextRound();
+}
+```
+
+---
+
+### `GetGhostReportSummary`
+
+Gets what the player's ghosts did: how other players' fights against the player's stored ships ended.
+
+**Signature:**
+```csharp
+public UniTask<GhostReportSummaryResponse> GetGhostReportSummary(string pool)
+```
+
+**Parameters:**
+- `pool` - Pool key
+
+**Returns:** `UniTask<GhostReportSummaryResponse>` - Or null on failure
+
+**GhostReportSummaryResponse Properties:**
+- `Pool` / `Partition` (string) - Pool key and current season
+- `Rating` (int) - The player's current rating
+- `NewGhostWins` / `NewGhostLosses` / `NewGhostDraws` (int) - Fights the player's ghosts won, lost and drew **since the previous call**
+- `GhostWins` / `GhostLosses` / `GhostDraws` (int) - Totals for this season
+
+**Description:**
+Each call resets the `New*` counts, so call it when you are about to show them (e.g. on returning to the menu), not for polling.
+
+**Usage:**
+```csharp
+GhostReportSummaryResponse summary = await FunticoSDK.Instance.GetGhostReportSummary("arena");
+if (summary != null && summary.NewGhostWins + summary.NewGhostLosses + summary.NewGhostDraws > 0)
+{
+    ShowPopup($"While you were away your ship won {summary.NewGhostWins} and lost {summary.NewGhostLosses} fights.");
+}
+```
+
+---
+
+### `GetGhostHistory`
+
+Gets the player's fights and the fights against the player's ghosts, newest first.
+
+**Signature:**
+```csharp
+public UniTask<GhostHistoryResponse> GetGhostHistory(string pool, int page = 1, int limit = 20)
+```
+
+**Parameters:**
+- `pool` - Pool key
+- `page` - Page number, starting at 1
+- `limit` - Items per page, 1-50
+
+**Returns:** `UniTask<GhostHistoryResponse>` - `Items` (List\<GhostHistoryItem\>), `Page`, `Limit`, `HasMore` (bool, another page exists), or null on failure
+
+**GhostHistoryItem Properties:**
+- `MatchId` (Guid) - Match identifier
+- `Role` (string) - `"Attacker"` (the player fought a ghost) or `"Defender"` (someone fought the player's ghost); `GetRole()` returns the typed `GhostMatchRole?`
+- `Outcome` (string) - `"Win"`, `"Loss"`, `"Draw"` from the player's point of view, or null when the match closed without an outcome; `GetOutcome()` returns the typed `GhostOutcome?`
+- `Expired` (bool) - `true` when the match expired unreported
+- `OpponentName` / `OpponentAvatarUrl` (string) - Display data of the other side
+- `OpponentIsBot` (bool) - Whether the opponent was a bot
+- `RatingBefore` / `RatingAfter` (int) - The player's rating change from this fight
+- `Partition` (string) - Season of the match
+- `CreatedAt` (DateTime) / `ClosedAt` (DateTime?) - UTC timestamps
+
+Open (unreported) matches are not listed.
+
+**Usage:**
+```csharp
+GhostHistoryResponse history = await FunticoSDK.Instance.GetGhostHistory("arena", page: 1, limit: 20);
+if (history == null)
+    return;
+
+foreach (GhostHistoryItem item in history.Items)
+{
+    string side = item.GetRole() == GhostMatchRole.Defender ? "defended against" : "fought";
+    Debug.Log($"{side} {item.OpponentName}: {item.Outcome ?? "no result"} ({item.RatingBefore} -> {item.RatingAfter})");
+}
+
+loadMoreButton.SetActive(history.HasMore);
+```
+
+---
+
+### `GetGhostLeaderboard`
+
+Gets the players of a pool's season ranked by rating, plus the player's own place. Only players who fought this season are ranked; a ship that was only uploaded does not count.
+
+**Signature:**
+```csharp
+public UniTask<GhostLeaderboardResponse> GetGhostLeaderboard(string pool, int page = 1, int limit = 20, string partition = null)
+```
+
+**Parameters:**
+- `pool` - Pool key
+- `page` - Page number, starting at 1
+- `limit` - Entries per page, 1-100
+- `partition` - A past season such as `"s1"`; null for the current season
+
+**Returns:** `UniTask<GhostLeaderboardResponse>` - `Pool`, `Partition`, `Items` (List\<GhostLeaderboardEntry\>), `Me` (the player's own entry with its place even when it is not on this page; null until the player has fought this season), `Page`, `Limit`, `HasMore`, or null on failure
+
+**GhostLeaderboardEntry Properties:**
+- `Place` (int) - 1-based place: rating, then wins, high to low
+- `Name` / `AvatarUrl` (string) - Display data
+- `Rating` (int) - Rating in this season
+- `Wins` / `Losses` / `Draws` (int) - The player's own fights
+- `GhostWins` / `GhostLosses` / `GhostDraws` (int) - Fights against the player's ghosts, from the ghost's side
+- `IsMe` (bool) - Whether this entry is the current player
+
+**Usage:**
+```csharp
+GhostLeaderboardResponse board = await FunticoSDK.Instance.GetGhostLeaderboard("arena");
+if (board == null)
+    return;
+
+foreach (GhostLeaderboardEntry entry in board.Items)
+    AddRow(entry.Place, entry.Name, entry.Rating, entry.IsMe);
+
+if (board.Me != null && !board.Items.Exists(entry => entry.IsMe))
+    AddOwnRow(board.Me.Place, board.Me.Rating);
+```
+
+---
+
+### `GetLastGhostError`
+
+Gets the reason the last Ghost call failed.
+
+**Signature:**
+```csharp
+public GhostErrorResponse GetLastGhostError()
+```
+
+**Returns:** `GhostErrorResponse` - `Error` (string code) and `Message` (human-readable, may change), or null if the last call succeeded
+
+**Error codes (`GhostErrorCodes`):**
+- `PoolNotFound` - The game has no enabled pool with this key
+- `RunNotSupported` - The pool has no runs, so there is nothing to start or abandon
+- `RunNotActive` - The pool plays runs and the player has no active one (or it just finished). Call `StartGhostRun`
+- `RunStateMismatch` - An attribute bound to the run differs from the run's value. Leave bound attributes out
+- `InvalidAttributes` - An attribute is unknown, missing or outside its `Min..Max`
+- `InvalidSnapshot` - The ship is missing, not valid JSON, or larger than the pool allows
+- `NoOpponent` - Nobody matched and no bot was available. **A normal outcome**: let the player try again later
+- `MatchNotFound` - No match with this id was issued to the player
+- `MatchExpired` - The match expired before it was reported
+- `InvalidSignature` - The report could not be verified (check the private key passed to `Initialize`)
+- `InvalidOutcome` - The outcome is not `Win`, `Loss` or `Draw`
+- `Unauthorized` - Set by the SDK: the player is not authenticated. Call `Authentication` first
+- `RequestFailed` - Set by the SDK: no connection, timeout, or an unexpected response. `Message` has the details
+
+**Usage:**
+```csharp
+void HandleGhostError(GhostErrorResponse error)
+{
+    switch (error?.Error)
+    {
+        case GhostErrorCodes.NoOpponent:
+            ShowMessage("No opponent right now. Try again in a moment.");
+            break;
+        case GhostErrorCodes.RunNotActive:
+            ShowStartRunButton();
+            break;
+        case GhostErrorCodes.MatchExpired:
+            ShowMessage("The fight expired.");
+            break;
+        case GhostErrorCodes.Unauthorized:
+            RequestLogin();
+            break;
+        default: // RequestFailed and the rest
+            ShowRetryButton();
+            break;
+    }
+}
+```
+
+**Important Notes:**
+- The last error belongs to the most recent Ghost call that finished; check it right after the call that returned null
 
 ---
 
