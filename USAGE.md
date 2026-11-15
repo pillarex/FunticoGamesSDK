@@ -13,7 +13,8 @@ Complete reference guide for all public methods in Funtico SDK.
 7. [Server Session Methods](#server-session-methods)
 8. [Hall of Fame Methods](#hall-of-fame-methods)
 9. [Campaign Methods](#campaign-methods)
-10. [Usage Examples](#usage-examples)
+10. [Inventory Methods](#inventory-methods)
+11. [Usage Examples](#usage-examples)
 
 ---
 
@@ -2544,6 +2545,145 @@ public async void OnLevelFinished(bool reachedExit, int coins, float timeSeconds
 - On failure the tracked attempt is kept **only for network/5xx errors**; on `AttemptNotFound` or `CompletionTooFast` it is cleared automatically (the server-side attempt is dead — retrying would fail forever)
 - On success the recorded client-session events (`RecordEvent_Client`) are cleared via `ClearSessionEvents_Client` — they were delivered with this submission; the client session itself is untouched
 - Server-side errors (`CampaignNotAvailable`, `LevelLocked`, `AttemptNotFound`, `InvalidSignature`, `InvalidMetrics`, `CompletionTooFast`) surface through your `IErrorHandler`
+
+---
+
+## Inventory Methods
+
+The Inventory module reads the items the player owns on the Funtico platform. It is **read-only**: items are granted by the platform (prizes, rewards, the shop), never through these methods.
+
+### `GetInventory`
+
+Gets the player's items.
+
+**Signature:**
+```csharp
+public UniTask<InventoryResponse> GetInventory(bool includeOtherItems = false)
+```
+
+**Parameters:**
+- `includeOtherItems` - If `false` (default), returns only items that belong to this game; if `true`, also returns platform-wide items and other games' consumables
+
+**Returns:** `UniTask<InventoryResponse>` - The player's items (or null on failure; see `GetLastInventoryError`)
+
+**InventoryResponse Properties:**
+- `Items` (List\<InventoryItem\>) - One entry per catalog item, with all of the player's copies folded together (empty when the player owns nothing)
+
+**InventoryItem Properties:**
+- `ItemId` (long) - Platform catalog id of the item (the same id prizes and entry fees use)
+- `GameItemId` (string) - Your studio's own key for the item, as set in the item catalog (or null)
+- `Name` / `Description` / `ImageUrl` (string) - Display data
+- `Count` (int) - Number of copies the player holds
+- `UserItemIds` (List\<long\>) - Ids of the individual copies
+- `IsConsumable` / `IsInfinity` / `IsSellable` (bool) - Item flags from the catalog
+- `IsGameItem` (bool) - `true` when the item belongs to this game (always `true` unless `includeOtherItems` is set)
+- `Rarity` (string) - Rarity name, e.g. `"Rare"` (or null)
+- `PropertiesJson` (string) - The item's catalog properties as a JSON object string, shaped by your studio (or null) — parse it with `GetInventoryItemProperties<T>`
+- `BaseStatsJson` (string) - The item's base stats as entered in the catalog, as a JSON string (or null)
+- `Copies` (List\<InventoryItemCopy\>) - Per-copy stats of an infinity item (empty for other items)
+
+**InventoryItemCopy Properties:**
+- `UserItemId` (long) - Id of the copy
+- `StatsJson` (string) - Stats the copy has accumulated, as a JSON string (`"[]"` when none yet)
+
+**Description:**
+Always calls the server (the result is not cached), so call it again after the player may have received items. Failures are logged and do not show an `IErrorHandler` popup — check `GetLastInventoryError` and decide in your UI.
+
+**Usage:**
+```csharp
+InventoryResponse inventory = await FunticoSDK.Instance.GetInventory();
+
+if (inventory == null)
+{
+    InventoryErrorResponse error = FunticoSDK.Instance.GetLastInventoryError();
+    HandleInventoryError(error); // see GetLastInventoryError
+    return;
+}
+
+foreach (InventoryItem item in inventory.Items)
+{
+    Debug.Log($"{item.Name} x{item.Count} (key: {item.GameItemId}, rarity: {item.Rarity})");
+}
+```
+
+---
+
+### `GetLastInventoryError`
+
+Gets the reason the last `GetInventory` call failed.
+
+**Signature:**
+```csharp
+public InventoryErrorResponse GetLastInventoryError()
+```
+
+**Returns:** `InventoryErrorResponse` - `Error` (string code) and `Message` (human-readable, may change), or null if the last call succeeded
+
+**Error codes (`InventoryErrorCodes`):**
+- `NotLinked` - The player is not linked to a Funtico account
+- `ReloginRequired` - The player's Funtico session belongs to another game or has expired. Log in to this game again (`Authentication` with a fresh platform token), then retry
+- `PlatformUnavailable` - The Funtico platform is temporarily unavailable. Retry later
+- `Unauthorized` - Set by the SDK: the player is not authenticated. Call `Authentication` first
+- `RequestFailed` - Set by the SDK: no connection, timeout, or an unexpected response. `Message` has the details
+
+**Usage:**
+```csharp
+void HandleInventoryError(InventoryErrorResponse error)
+{
+    switch (error?.Error)
+    {
+        case InventoryErrorCodes.ReloginRequired:
+        case InventoryErrorCodes.Unauthorized:
+            RequestLogin(); // then FunticoSDK.Instance.Authentication(newPlatformToken) and retry
+            break;
+        case InventoryErrorCodes.NotLinked:
+            ShowMessage("Link your Funtico account to see your items.");
+            break;
+        default: // PlatformUnavailable, RequestFailed
+            ShowRetryButton();
+            break;
+    }
+}
+```
+
+---
+
+### `GetInventoryItemProperties<T>`
+
+Deserializes an item's `PropertiesJson` into your game-defined type.
+
+**Signature:**
+```csharp
+public T GetInventoryItemProperties<T>(InventoryItem item)
+```
+
+**Parameters:**
+- `item` - Item from `GetInventory`
+
+**Returns:** `T` - Deserialized properties, or `default` (null for classes) if the item has no `PropertiesJson`
+
+**Description:**
+Convenience wrapper around `JsonConvert.DeserializeObject<T>(item.PropertiesJson)`. Throws a `JsonException` naming the item if the JSON cannot be read as `T`.
+
+**Usage:**
+```csharp
+public class MyItemProperties
+{
+    public MyGameProperties Game { get; set; }
+}
+
+public class MyGameProperties
+{
+    public string Slot { get; set; }
+    public int Level { get; set; }
+}
+
+MyItemProperties props = FunticoSDK.Instance.GetInventoryItemProperties<MyItemProperties>(item);
+if (props?.Game != null)
+{
+    EquipToSlot(props.Game.Slot, item);
+}
+```
 
 ---
 

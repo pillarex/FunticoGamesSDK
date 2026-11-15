@@ -110,6 +110,12 @@ namespace FunticoGamesSDK
 
         #endregion
 
+        #region Inventory
+
+        public static string Get_Inventory => API + "/Inventory";
+
+        #endregion
+
         #region Session
 
         #region Client
