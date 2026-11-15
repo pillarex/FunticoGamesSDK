@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.AuthDataProviders;
@@ -23,6 +24,13 @@ namespace FunticoGamesSDK.NetworkUtils
         private static IErrorHandler _errorHandler;
         private static IAuthDataProvider _authDataProvider;
 
+        /// <summary>
+        /// Also log request and response bodies. Off by default: bodies carry the player's token and other
+        /// private data. Even when on, values of token, password, key and similar fields are masked and long
+        /// bodies are cut. Turn it on only while debugging, never in a build you share.
+        /// </summary>
+        public static bool LogBodies { get; set; }
+
         public static void Setup(string publicGameKey, string privateGameKey, string sessionId, IAuthDataProvider authDataProvider, IErrorHandler errorHandler)
         {
             _publicGameKey = publicGameKey;
@@ -43,50 +51,33 @@ namespace FunticoGamesSDK.NetworkUtils
 
             while (!getRequest.isDone) await DelayAsync(0.01f);
 
-            if (!string.IsNullOrEmpty(getRequest.downloadHandler.text))
-            {
-                Logger.LogDedicated($"{getRequest.method} {getRequest.responseCode} {getRequest.downloadHandler.text}");
-            }
+            LogResponse(getRequest);
 
             if (getRequest.result == UnityWebRequest.Result.Success)
             {
-                try
-                {
-                    return true;
-                }
-                catch (Exception e)
-                {
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {e.Message}");
-                    return false;
-                }
+                return true;
             }
-            else
+
+            try
             {
-                try
-                {
-                    errorHandler?.Invoke(getRequest);
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {getRequest.downloadHandler.text}");
-                    return false;
-                }
-                catch (Exception e)
-                {
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {e.Message}");
-                    return false;
-                }
+                errorHandler?.Invoke(getRequest);
+                return false;
+            }
+            catch (Exception e)
+            {
+                LogException(getRequest, e);
+                return false;
             }
         }
-        
+
         public static async Task<Tuple<bool, T>> Get<T>(string endPoint, Action<UnityWebRequest> errorHandler = null, string tokenToUse = null)
         {
             using UnityWebRequest getRequest = CreateRequest(endPoint, tokenToUse);
             getRequest.SendWebRequest();
 
             while (!getRequest.isDone) await DelayAsync(0.01f);
-            
-            if (!string.IsNullOrEmpty(getRequest.downloadHandler.text) )
-            {
-                Logger.LogDedicated($"{getRequest.method} {getRequest.responseCode} {getRequest.downloadHandler.text}");
-            }
+
+            LogResponse(getRequest);
 
             if (getRequest.result == UnityWebRequest.Result.Success)
             {
@@ -96,23 +87,20 @@ namespace FunticoGamesSDK.NetworkUtils
                 }
                 catch (Exception e)
                 {
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {e.Message}");
+                    LogException(getRequest, e);
                     return new Tuple<bool, T>(false, default);
                 }
             }
-            else
+
+            try
             {
-                try
-                {
-                    errorHandler?.Invoke(getRequest);
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {getRequest.downloadHandler.text}");
-                    return new Tuple<bool, T>(false, JsonConvert.DeserializeObject<T>(getRequest.downloadHandler.text));
-                }
-                catch (Exception e)
-                {
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {e.Message}");
-                    return new Tuple<bool, T>(false, default);
-                }
+                errorHandler?.Invoke(getRequest);
+                return new Tuple<bool, T>(false, JsonConvert.DeserializeObject<T>(getRequest.downloadHandler.text));
+            }
+            catch (Exception e)
+            {
+                LogException(getRequest, e);
+                return new Tuple<bool, T>(false, default);
             }
         }
 
@@ -122,11 +110,8 @@ namespace FunticoGamesSDK.NetworkUtils
             getRequest.SendWebRequest();
 
             while (!getRequest.isDone) await DelayAsync(0.01f);
-            
-            if (!string.IsNullOrEmpty(getRequest.downloadHandler.text))
-            {
-                Logger.LogDedicated($"{getRequest.method} {getRequest.responseCode} {getRequest.downloadHandler.text}");
-            }
+
+            LogResponse(getRequest);
 
             if (getRequest.result == UnityWebRequest.Result.Success)
             {
@@ -136,63 +121,33 @@ namespace FunticoGamesSDK.NetworkUtils
                 }
                 catch (Exception e)
                 {
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {e.Message}");
+                    LogException(getRequest, e);
                     return new Tuple<bool, T>(false, default);
                 }
             }
-            else
+
+            try
             {
-                try
-                {                    
-                    errorHandler?.Invoke(getRequest);
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {getRequest.downloadHandler.text}");
-                    return new Tuple<bool, T>(false, JsonConvert.DeserializeObject<T>(getRequest.downloadHandler.text));
-                }
-                catch (Exception e)
-                {
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {e.Message}");
-                    return new Tuple<bool, T>(false, default);
-                }
+                errorHandler?.Invoke(getRequest);
+                return new Tuple<bool, T>(false, JsonConvert.DeserializeObject<T>(getRequest.downloadHandler.text));
+            }
+            catch (Exception e)
+            {
+                LogException(getRequest, e);
+                return new Tuple<bool, T>(false, default);
             }
         }
-        
+
         public static async Task<bool> Post_Short(string endPoint, object data, string tokenToUse = null)
         {
             using UnityWebRequest getRequest = CreateRequest(endPoint, tokenToUse, RequestType.POST, data);
             getRequest.SendWebRequest();
 
             while (!getRequest.isDone) await DelayAsync(0.01f);
-            
-            if (!string.IsNullOrEmpty(getRequest.downloadHandler.text))
-            {
-                Logger.LogDedicated($"{getRequest.method} {getRequest.responseCode} {getRequest.downloadHandler.text}");
-            }
-            
-            if(getRequest.result == UnityWebRequest.Result.Success)
-            {
-                try
-                {
-                    return true;
-                }
-                catch (Exception e)
-                {
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {e.Message}");
-                    return false;
-                }
-            }
-            else
-            {
-                try
-                {
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {getRequest.downloadHandler.text}");
-                    return false;
-                }
-                catch (Exception e)
-                {
-                    Logger.LogErrorDedicated($"{getRequest.method} {getRequest.responseCode} {e.Message}");
-                    return false;
-                }
-            }
+
+            LogResponse(getRequest);
+
+            return getRequest.result == UnityWebRequest.Result.Success;
         }
 
         private static async Task DelayAsync(float secondsDelay)
@@ -207,28 +162,30 @@ namespace FunticoGamesSDK.NetworkUtils
             getRequest.SendWebRequest();
 
             while (!getRequest.isDone) await DelayAsync(0.01f);
-            
-            Logger.LogDedicated("[HTTP] Response code : " + getRequest.responseCode);
+
+            LogResponse(getRequest);
 
             if (getRequest.responseCode != 200)
             {
                 return "Error:" + getRequest.downloadHandler.text;
             }
-                
+
             return getRequest.downloadHandler.text;
         }
 
         private static UnityWebRequest CreateRequest(string path, string tokenToUse = null, RequestType type = RequestType.GET, object data = null)
         {
-            Logger.LogDedicated($"POST_SHORT to {path}");
-            if (data != null)
-                Logger.LogDedicated($"POST_SHORT with data: {JsonConvert.SerializeObject(data)}");
-            
+            string json = data != null ? JsonConvert.SerializeObject(data) : null;
+
+            Logger.LogDedicated(LogBodies && json != null
+                ? $"{type} {HttpLogFormat.Path(path)} body: {HttpLogFormat.Body(json, HttpLogFormat.MaxBodyLength)}"
+                : $"{type} {HttpLogFormat.Path(path)}");
+
             UnityWebRequest request = new UnityWebRequest(path, type.ToString());
-            
-            if (data != null)
+
+            if (json != null)
             {
-                var bodyRaw = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(data));
+                var bodyRaw = Encoding.UTF8.GetBytes(json);
                 request.uploadHandler = new UploadHandlerRaw(bodyRaw);
             }
 
@@ -240,6 +197,32 @@ namespace FunticoGamesSDK.NetworkUtils
 
             return request;
         }
+
+        /// <summary>
+        /// One line per finished request: method, path, status. A failure also carries the start of its
+        /// body (masked) so the reason is visible; a success carries its body only with <see cref="LogBodies"/>.
+        /// </summary>
+        private static void LogResponse(UnityWebRequest request)
+        {
+            var line = $"{request.method} {HttpLogFormat.Path(request.url)} {request.responseCode}";
+            var body = request.downloadHandler?.text;
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                Logger.LogDedicated(LogBodies && !string.IsNullOrEmpty(body)
+                    ? $"{line} {HttpLogFormat.Body(body, HttpLogFormat.MaxBodyLength)}"
+                    : line);
+                return;
+            }
+
+            var reason = !string.IsNullOrEmpty(body)
+                ? HttpLogFormat.Body(body, LogBodies ? HttpLogFormat.MaxBodyLength : HttpLogFormat.MaxErrorLength)
+                : request.error;
+            Logger.LogErrorDedicated($"{line} {reason}");
+        }
+
+        private static void LogException(UnityWebRequest request, Exception e) =>
+            Logger.LogErrorDedicated($"{request.method} {HttpLogFormat.Path(request.url)} {request.responseCode} {e.Message}");
 
         private static void ConfigureRequestHeaders(UnityWebRequest request, string tokenToUse = null)
         {
@@ -287,6 +270,52 @@ namespace FunticoGamesSDK.NetworkUtils
         {
             GET = 0,
             POST = 1,
+        }
+    }
+
+    /// <summary>
+    /// Makes request and response text safe to log: no query strings (they can carry passwords), masked
+    /// values of secret-looking JSON fields, masked JWTs and bearer tokens, and a length cap.
+    /// </summary>
+    internal static class HttpLogFormat
+    {
+        internal const int MaxBodyLength = 2000;
+        internal const int MaxErrorLength = 300;
+        internal const string Mask = "***";
+
+        // A JSON string field whose name contains one of these words (any case): "token": "...", "Password": "..." etc.
+        private static readonly Regex SecretField = new Regex(
+            "(\"[^\"]*(?:token|password|secret|authorization|apikey|api_key|privatekey|private_key|jwt)[^\"]*\"\\s*:\\s*)\"(?:[^\"\\\\]|\\\\.)*\"",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        private static readonly Regex Jwt = new Regex(
+            "eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]*",
+            RegexOptions.CultureInvariant);
+
+        private static readonly Regex Bearer = new Regex(
+            "(Bearer\\s+)[A-Za-z0-9._~+/=-]+",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        /// <summary>The URL without its query string.</summary>
+        internal static string Path(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return url;
+            var query = url.IndexOf('?');
+            return query < 0 ? url : url.Substring(0, query) + "?" + Mask;
+        }
+
+        /// <summary>The text with secrets masked, cut to <paramref name="maxLength"/> characters.</summary>
+        internal static string Body(string text, int maxLength)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+
+            var masked = SecretField.Replace(text, "$1\"" + Mask + "\"");
+            masked = Jwt.Replace(masked, Mask);
+            masked = Bearer.Replace(masked, "$1" + Mask);
+
+            return masked.Length <= maxLength
+                ? masked
+                : masked.Substring(0, maxLength) + $"… ({masked.Length - maxLength} more chars)";
         }
     }
 

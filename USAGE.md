@@ -63,6 +63,18 @@ await FunticoSDK.Instance.Initialize(
 - On client builds, automatically pre-loads user data and balance
 - On server builds (SERVER or UNITY_SERVER defines), skips automatic authentication
 
+### Network logging
+
+Every request writes one line to the Unity console through the SDK logger: method, path and status code, for example `GET https://.../Inventory 200`. Query strings are replaced with `?***`. A failed request also logs the first 300 characters of the response body, which usually names the reason.
+
+Request and response bodies are **not** logged, because they carry the player's token and other private data. To see them while debugging, turn them on:
+
+```csharp
+FunticoGamesSDK.NetworkUtils.HTTPClient.LogBodies = true; // debugging only
+```
+
+Even then, values of fields whose name contains `token`, `password`, `secret`, `authorization`, `apikey` or `privatekey`, and anything that looks like a JWT or a bearer token, are replaced with `***`, and bodies are cut at 2000 characters. Leave `LogBodies` off in builds you share: masking is a safety net, not a guarantee.
+
 ---
 
 ## Authentication Methods
