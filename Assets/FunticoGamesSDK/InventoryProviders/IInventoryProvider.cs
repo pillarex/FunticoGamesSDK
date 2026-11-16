@@ -28,5 +28,14 @@ namespace FunticoGamesSDK.InventoryProviders
         /// Throws Newtonsoft.Json.JsonException if PropertiesJson cannot be read as <typeparamref name="T"/>.
         /// </summary>
         T GetInventoryItemProperties<T>(InventoryItem item);
+
+        /// <summary>
+        /// The player's latest rewards in this game, newest first: what runs (RecordCollected_Client),
+        /// campaign levels and arena runs paid. Use it after a result to show what the run brought.
+        /// Returns null on failure.
+        /// </summary>
+        /// <param name="limit">1-100, default 20.</param>
+        /// <param name="since">Only rewards created at or after this time (UTC), e.g. when the run started.</param>
+        UniTask<RecentRewardsResponse> GetRecentRewards(int limit = 20, System.DateTime? since = null);
     }
 }

@@ -31,6 +31,20 @@ namespace FunticoGamesSDK
 			_userDataService.CanAffordFromCache(type, amount);
 
 		public UniTask<bool> CanAfford(EntryFeeType type, int amount) => _userDataService.CanAfford(type, amount);
-		public UniTask<bool> CompletePractice(int score) => _userDataService.CompletePractice(score);
+		/// <summary>
+		/// Submits a practice result. Whatever the run recorded with RecordCollected_Client goes with it,
+		/// and is cleared once the result is accepted.
+		/// </summary>
+		public async UniTask<bool> CompletePractice(int score)
+		{
+			var collected = _clientSessionManager?.GetCurrentSessionCollected_Client();
+			var success = await _userDataService.CompletePractice(score, collected);
+			if (success)
+				_clientSessionManager?.ClearSessionCollected_Client();
+			return success;
+		}
+
+		public UniTask<bool> CompletePractice(int score, Dictionary<string, int> collected) =>
+			_userDataService.CompletePractice(score, collected);
 	}
 }

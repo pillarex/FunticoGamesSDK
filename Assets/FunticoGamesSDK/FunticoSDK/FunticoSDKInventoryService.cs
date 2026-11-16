@@ -20,5 +20,8 @@ namespace FunticoGamesSDK
 
 		public T GetInventoryItemProperties<T>(InventoryItem item) =>
 			_inventoryProvider.GetInventoryItemProperties<T>(item);
+
+		public UniTask<RecentRewardsResponse> GetRecentRewards(int limit = 20, System.DateTime? since = null) =>
+			_inventoryProvider.GetRecentRewards(limit, since);
 	}
 }

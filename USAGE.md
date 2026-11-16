@@ -428,6 +428,8 @@ public UniTask<bool> CompletePractice(int score)
 **Description:**
 Sends the practice game result to the server. The SDK automatically handles encryption and integrity hashing of the score data before sending. The server records the result in the Hall of Fame and increments the user's practice play count.
 
+Whatever the run recorded with `RecordCollected_Client` goes with the result, so practice can pay run rewards too, for the keys your game has opened for practice. The counts are cleared once the result is accepted. Each practice run carries an id the SDK makes for it: retrying a failed `CompletePractice` resends the same run, so it is never counted twice.
+
 **Usage:**
 ```csharp
 // After practice game ends
@@ -448,6 +450,8 @@ else
 - User data must be cached before calling (automatically done during SDK initialization)
 - Score data is AES-encrypted and HMAC-hashed for anti-cheat protection
 - The server records the result in Hall of Fame as a Practice game type
+- Collected counts left over from a run that never submitted are sent with the next practice result; a key that is not open for practice earns nothing there
+- Use `GetRecentRewards` afterwards to show what the run paid
 
 ---
 
@@ -1906,7 +1910,9 @@ public void OnChestCollected()
 - Each key has a limit per run. Agree it together with the key, so that a normal run cannot exceed it.
 - The counts are saved with every `UpdateSession_Client` checkpoint and restored by `ReconnectToUnfinishedSession_Client`. Anything collected after the last checkpoint is rolled back with the rest of the run's progress.
 - `CreateSession_Client` resets the counts, so create the session before the run can collect anything.
-- A failed `FinishRoomSession_Client` or `ResultTournament_Client` keeps the counts, so a retry still sends them. `CompletePractice` and `CompleteCampaignLevel` do not send them: do not record anything in those modes.
+- A failed `FinishRoomSession_Client`, `ResultTournament_Client` or `CompletePractice` keeps the counts, so a retry still sends them. `CompleteCampaignLevel` does not send them: campaign rewards are set per level.
+- A key can pay a fixed reward or a random one drawn by the server; the game never chooses the item. Each key is open for chosen modes (rooms, tournaments, practice).
+- `GetRecentRewards` shows what the counts paid once the result is in.
 - An empty key or a non-positive count logs an error and is ignored.
 
 ---
@@ -2697,6 +2703,58 @@ if (props?.Game != null)
     EquipToSlot(props.Game.Slot, item);
 }
 ```
+
+---
+
+### `GetRecentRewards`
+
+Gets the player's latest rewards in this game, newest first: what runs (`RecordCollected_Client`), campaign levels and arena runs paid.
+
+**Signature:**
+```csharp
+public UniTask<RecentRewardsResponse> GetRecentRewards(int limit = 20, DateTime? since = null)
+```
+
+**Parameters:**
+- `limit` - How many to return, 1-100. Default: `20`.
+- `since` - Only rewards created at or after this time (UTC), for example when the run started. Default: all.
+
+**Returns:** `UniTask<RecentRewardsResponse>` - The rewards, or `null` on failure
+
+**RecentReward Properties:**
+- `Id` (Guid) - Unique id of the reward
+- `Source` (string) - `Room`, `Tournament`, `Practice`, `Campaign` or `Arena`
+- `RunId` (string) - The run it belongs to
+- `Key` (string) - The collected key or reward table that produced it
+- `Status` (string) - See `RecentRewardStatus`: `Queued` (on its way), `Delivered`, `Empty` (a random draw that paid nothing), `Refused`, `Failed`
+- `Items` (List<RecentRewardItem>) - `ItemId`, `GameItemId`, `Name`, `ImageUrl`, `Amount`. Empty for an `Empty` draw
+- `CreatedAt` (DateTime) / `DeliveredAt` (DateTime?) - UTC
+
+**Description:**
+Rewards are paid by the server after the result is accepted; a reward that could not reach the platform yet stays `Queued` and is delivered later, at the latest on the player's next login. The list never shows a result the platform has not accepted.
+
+**Usage:**
+```csharp
+DateTime runStarted = DateTime.UtcNow;
+// ... play the run, then submit the result ...
+await FunticoSDK.Instance.FinishRoomSession_Client(eventId, sessionId, score);
+
+RecentRewardsResponse recent = await FunticoSDK.Instance.GetRecentRewards(since: runStarted);
+if (recent != null)
+{
+    foreach (RecentReward reward in recent.Rewards)
+        foreach (RecentRewardItem item in reward.Items)
+            ShowFromYourRun(item.GameItemId, item.Name, item.ImageUrl, item.Amount);
+}
+
+// The items themselves: refresh the inventory once something was delivered.
+if (recent?.Rewards.Exists(r => r.Status == RecentRewardStatus.Delivered) == true)
+    await FunticoSDK.Instance.GetInventory();
+```
+
+**Important Notes:**
+- Always calls the server; nothing is cached
+- `Source` `Arena` rewards arrive when an arena run finishes, which can happen while the player is away (an unanswered fight times out)
 
 ---
 

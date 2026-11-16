@@ -19,6 +19,7 @@ namespace FunticoGamesSDK.UserDataProviders
 		private BalanceResponse Balance { get; set; }
 		private List<VoucherData> Vouchers { get; set; } = new List<VoucherData>();
 		private List<VoucherStaticData> _vouchersStaticData;
+		private string _practiceRunId;
 
 		#endregion
 
@@ -94,12 +95,20 @@ namespace FunticoGamesSDK.UserDataProviders
 			return CanAffordFromCache(type, amount);
 		}
 
-		public async UniTask<bool> CompletePractice(int score)
+		public UniTask<bool> CompletePractice(int score) => CompletePractice(score, null);
+
+		public async UniTask<bool> CompletePractice(int score, Dictionary<string, int> collected)
 		{
+			// The run id survives a failed submit, so retrying the same result cannot be counted twice;
+			// a successful submit starts the next run with a fresh one.
+			_practiceRunId ??= Guid.NewGuid().ToString();
+
 			var userData = GetCachedUserData();
 			var practiceRequest = new CompletePracticeRequest()
 			{
-				Score = score
+				Score = score,
+				RunId = _practiceRunId,
+				Collected = collected != null && collected.Count > 0 ? collected : null
 			};
 
 			var userId = userData.UserId.ToString();
@@ -114,6 +123,8 @@ namespace FunticoGamesSDK.UserDataProviders
 			};
 
 			var success = await HTTPClient.Post_Short(APIConstants.COMPLETE_PRACTICE, request);
+			if (success)
+				_practiceRunId = null;
 			return success;
 		}
 

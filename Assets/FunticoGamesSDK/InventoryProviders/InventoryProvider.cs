@@ -43,6 +43,27 @@ namespace FunticoGamesSDK.InventoryProviders
 
         public InventoryErrorResponse GetLastInventoryError() => _lastError;
 
+        public async UniTask<RecentRewardsResponse> GetRecentRewards(int limit = 20, DateTime? since = null)
+        {
+            var query = new List<string> { $"limit={Math.Clamp(limit, 1, 100)}" };
+            if (since != null)
+                query.Add("since=" + UnityWebRequest.EscapeURL(since.Value.ToUniversalTime().ToString("o")));
+
+            (bool success, RecentRewardsResponse response) =
+                await HTTPClient.Get<RecentRewardsResponse>(APIConstants.WithQuery(APIConstants.Get_Recent_Rewards, query.ToArray()));
+            if (!success || response == null)
+            {
+                Logger.LogError("Failed to get recent rewards.");
+                return null;
+            }
+
+            response.Rewards ??= new List<RecentReward>();
+            response.Rewards.RemoveAll(reward => reward == null);
+            foreach (var reward in response.Rewards)
+                reward.Items ??= new List<RecentRewardItem>();
+            return response;
+        }
+
         public T GetInventoryItemProperties<T>(InventoryItem item)
         {
             if (item == null || string.IsNullOrWhiteSpace(item.PropertiesJson))
