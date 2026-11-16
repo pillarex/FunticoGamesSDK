@@ -9,6 +9,7 @@ using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.APIModels.PrizesResponses;
 using FunticoGamesSDK.AssetsProvider;
 using FunticoGamesSDK.AuthDataProviders;
+using FunticoGamesSDK.Encryption;
 using FunticoGamesSDK.NetworkUtils;
 using FunticoGamesSDK.TextureResizer;
 using FunticoGamesSDK.UserDataProviders;
@@ -23,11 +24,11 @@ namespace FunticoGamesSDK.RoomsProviders
         protected RoomConfig[] LastRoomsResponse;
         protected readonly IUserDataService UserDataService;
         protected readonly IAuthDataProvider AuthDataProvider;
-        protected readonly string PrivateKey;
+        protected readonly IPayloadSigner Signer;
 
-        public RoomsProviderInternal(string privateKey, IUserDataService userDataService, IAuthDataProvider authDataProvider)
+        public RoomsProviderInternal(IPayloadSigner signer, IUserDataService userDataService, IAuthDataProvider authDataProvider)
         {
-            PrivateKey = privateKey;
+            Signer = signer;
             UserDataService = userDataService;
             AuthDataProvider = authDataProvider;
         }

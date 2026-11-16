@@ -5,18 +5,17 @@ using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.Encryption;
 using FunticoGamesSDK.NetworkUtils;
 using FunticoGamesSDK.ViewModels;
-using Newtonsoft.Json;
 using Logger = FunticoGamesSDK.Logging.Logger;
 
 namespace FunticoGamesSDK.TournamentsProviders
 {
     public abstract class TournamentsProviderInternal
     {
-        protected readonly string PrivateKey;
+        protected readonly IPayloadSigner Signer;
 
-        protected TournamentsProviderInternal(string privateKey)
+        protected TournamentsProviderInternal(IPayloadSigner signer)
         {
-            PrivateKey = privateKey;
+            Signer = signer;
         }
 
         #region Public
@@ -125,15 +124,15 @@ namespace FunticoGamesSDK.TournamentsProviders
                 Collected = collected != null && collected.Count > 0 ? collected : null,
             };
 
-            var gameDataKey = saveScoreId.Substring(0, 8) + PrivateKey.Substring(0, 8);
-            var encrypted = AESNonDynamic.Encrypt(JsonConvert.SerializeObject(payload), gameDataKey);
-            var hash = HashUtils.HashString(encrypted, PrivateKey.Substring(8));
+            var signed = await PayloadSigning.Sign(Signer, PayloadKind.Tournament, saveScoreId, payload);
+            if (signed == null)
+                return false;
 
             var request = new RoomSaveScoreRequestEncrypted
             {
-                EncryptedData = encrypted,
+                EncryptedData = signed.Data,
                 TournamentId = tournamentId,
-                Hash = hash,
+                Hash = signed.Hash,
             };
 
             var url = $"{APIConstants.Post_Tournament_Result_Client}?tournamentId={tournamentId}&saveScoreId={saveScoreId}";

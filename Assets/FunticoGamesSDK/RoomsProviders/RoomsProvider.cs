@@ -12,7 +12,6 @@ using FunticoGamesSDK.UserDataProviders;
 using FunticoGamesSDK.ViewModels;
 using UnityEngine;
 using FunticoGamesSDK.Encryption;
-using Newtonsoft.Json;
 using Logger = FunticoGamesSDK.Logging.Logger;
 
 namespace FunticoGamesSDK.RoomsProviders
@@ -23,9 +22,9 @@ namespace FunticoGamesSDK.RoomsProviders
 		private readonly IServerSessionManager _serverSessionManager;
 		private readonly IErrorHandler _errorHandler;
 
-		public RoomsProvider(string privateKey, IUserDataService userDataService, IAuthDataProvider authDataProvider,
+		public RoomsProvider(IPayloadSigner signer, IUserDataService userDataService, IAuthDataProvider authDataProvider,
 			IClientSessionManager clientSessionManager, IServerSessionManager serverSessionManager,
-			IErrorHandler errorHandler) : base(privateKey, userDataService, authDataProvider)
+			IErrorHandler errorHandler) : base(signer, userDataService, authDataProvider)
 		{
 			_serverSessionManager = serverSessionManager;
 			_clientSessionManager = clientSessionManager;
@@ -128,21 +127,24 @@ namespace FunticoGamesSDK.RoomsProviders
 				Collected = collected.Count > 0 ? collected : null
 			};
 			
-			var gameDataKey = sessionId.Substring(0, 8) + PrivateKey.Substring(0, 8);
-			var encrypted = AESNonDynamic.Encrypt(JsonConvert.SerializeObject(gameData), gameDataKey);
-			var hashSummary = HashUtils.HashString(encrypted, PrivateKey.Substring(8));
-
-			var data = new RoomSaveScoreRequestEncrypted()
+			// A result the signer refused is not sent and fails like a network error below.
+			var signed = await PayloadSigning.Sign(Signer, PayloadKind.Room, sessionId, gameData);
+			var success = false;
+			if (signed != null)
 			{
-				EncryptedData = encrypted,
-				Hash = hashSummary,
-				TournamentId = Guid.Parse(eventId),
-			};
+				var data = new RoomSaveScoreRequestEncrypted()
+				{
+					EncryptedData = signed.Data,
+					Hash = signed.Hash,
+					TournamentId = Guid.Parse(eventId),
+				};
 
-			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match, $"eventId={eventId}",
-				$"gameSessionIrOrMatchId={sessionId}"); 
+				var url = APIConstants.WithQuery(APIConstants.Post_Score_Match, $"eventId={eventId}",
+					$"gameSessionIrOrMatchId={sessionId}");
 
-			var success = await HTTPClient.Post_Short(url, data);
+				success = await HTTPClient.Post_Short(url, data);
+			}
+
 			_clientSessionManager.CloseCurrentSession_Client();
 
 			// Closing clears the counts; a failed submit keeps them so that a retry still sends them.

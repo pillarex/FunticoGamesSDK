@@ -12,7 +12,7 @@ namespace FunticoGamesSDK
 
 		private void SetupUserDataService()
 		{
-			_userDataService = new UserDataService(_privateGameKey);
+			_userDataService = new UserDataService(_signer);
 		}
 
 		public List<VoucherData> GetCachedVouchers() => _userDataService.GetCachedVouchers();

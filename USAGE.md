@@ -64,6 +64,71 @@ await FunticoSDK.Instance.Initialize(
 - Should only be called once during application lifetime
 - On client builds, automatically pre-loads user data and balance
 - On server builds (SERVER or UNITY_SERVER defines), skips automatic authentication
+- Since 1.1.0 there is a second overload that takes a signer (below). A call that passes a literal `null` as the private key, `Initialize(env, null, ...)`, now matches both and does not compile; write `(string) null`.
+
+### `Initialize` with a signer (since 1.1.0)
+
+Keeps the private game key out of the client build. The SDK then encrypts and signs nothing itself: it hands every result, and the saved session, to the signer you pass.
+
+**Signature:**
+```csharp
+public UniTask Initialize(
+    Environment env,
+    IPayloadSigner signer,
+    string publicGameKey,
+    string userToken,
+    IErrorHandler errorHandler)
+```
+
+`IPayloadSigner`, `PayloadKind`, `SignedPayload` and `LocalPayloadSigner` are in `FunticoGamesSDK.Encryption`.
+
+```csharp
+public interface IPayloadSigner
+{
+    UniTask<SignedPayload> Sign(PayloadKind kind, string saltId, string payloadJson);
+    UniTask<string> EncryptSession(string userId, string sessionJson);
+    UniTask<string> DecryptSession(string userId, string encryptedData);
+}
+```
+
+| SDK call | Signer method | `kind` | `saltId` / `userId` |
+|---|---|---|---|
+| `CompletePractice` | `Sign` | `Practice` | the player's `UserId` |
+| `FinishRoomSession_Client` | `Sign` | `Room` | `sessionId` |
+| `ResultTournament_Client` | `Sign` | `Tournament` | `saveScoreId` |
+| `CompleteCampaignLevel` | `Sign` | `Campaign` | the attempt id |
+| `ReportGhostResult` | `Sign` | `Ghost` | `matchId` |
+| `CompleteGoalAttempt` | `Sign` | `CommunityGoal` | the attempt id |
+| `CreateSession_Client`, `UpdateSession_Client` | `EncryptSession` | | the player's `UserId` |
+| `ReconnectToUnfinishedSession_Client` | `DecryptSession` | | the player's `UserId` |
+
+**Writing a signer:**
+- It must return exactly what `LocalPayloadSigner` returns for the same arguments and your private key; the API cannot tell them apart. The usual signer sends the arguments to your own backend, which holds the key and runs the same algorithm, and returns its answer. `LocalPayloadSigner` is the reference implementation.
+- Ids arrive unshortened; the signer derives the key salt from them as `LocalPayloadSigner.Salt` does.
+- Encrypt `payloadJson` and `sessionJson` exactly as given; never re-serialise them.
+- Authenticate the call to your backend with the player's token (`GetUserToken()`), and have the backend take the player's id from the token rather than from the request.
+- Return `null` when signing fails. The SDK then sends nothing and fails the call as it does on a network error: the method returns `false` or `null` (ghost and community goal calls set their last error to `RequestFailed`), and what a retry needs is kept: the practice run id, the campaign attempt and the collected counts. A signer that throws passes the exception to the game's call.
+
+**Usage:**
+```csharp
+await FunticoSDK.Instance.Initialize(
+    FunticoSDK.Environment.STAGING,
+    new MyBackendSigner(),
+    "your-public-key",
+    "user-platform-token",
+    new MyErrorHandler()
+);
+```
+
+**Compiling against older SDK versions:** the package version is 1.1.0 or newer when the signer overload exists. A `versionDefines` entry in your assembly definition lets the same code build against both:
+
+```json
+"versionDefines": [
+    { "name": "com.funticogames.sdk", "expression": "1.1.0", "define": "FUNTICO_SDK_SIGNER" }
+]
+```
+
+**Server builds:** server-only calls need the private key, so build a dedicated server with the key overload.
 
 ### Network logging
 

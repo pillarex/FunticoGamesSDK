@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
+using FunticoGamesSDK.Encryption;
 using FunticoGamesSDK.Logging;
 using FunticoGamesSDK.SessionsManagement;
 using FunticoGamesSDK.UserDataProviders;
@@ -11,9 +12,9 @@ namespace FunticoGamesSDK
 	{
 		private IClientSessionManager _clientSessionManager;
 
-		private void SetupClientSessionManager(IUserDataService userDataService, string privateKey)
+		private void SetupClientSessionManager(IUserDataService userDataService, IPayloadSigner signer)
 		{
-			_clientSessionManager = new ClientSessionManager(userDataService, privateKey);
+			_clientSessionManager = new ClientSessionManager(userDataService, signer);
 		}
 
 		public UniTask<UnfinishedSessionsResponse> UserHasUnfinishedSession_Client() =>

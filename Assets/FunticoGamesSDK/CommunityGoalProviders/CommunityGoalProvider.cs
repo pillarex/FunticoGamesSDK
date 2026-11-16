@@ -13,14 +13,12 @@ namespace FunticoGamesSDK.CommunityGoalProviders
 {
     public class CommunityGoalProvider : ICommunityGoalProvider
     {
-        private const int MinPrivateKeyLength = 9;
-
-        private readonly string _privateKey;
+        private readonly IPayloadSigner _signer;
         private CommunityGoalErrorResponse _lastError;
 
-        public CommunityGoalProvider(string privateKey)
+        public CommunityGoalProvider(IPayloadSigner signer)
         {
-            _privateKey = privateKey;
+            _signer = signer;
         }
 
         #region Public
@@ -64,20 +62,21 @@ namespace FunticoGamesSDK.CommunityGoalProviders
             return response;
         }
 
-        public UniTask<CompleteGoalAttemptResponse> CompleteGoalAttempt(GoalAttemptDto attempt, long contribution,
+        public async UniTask<CompleteGoalAttemptResponse> CompleteGoalAttempt(GoalAttemptDto attempt, long contribution,
             double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null)
         {
             if (attempt == null || attempt.AttemptId == Guid.Empty || attempt.GoalId == Guid.Empty)
-                return UniTask.FromResult(Fail<CompleteGoalAttemptResponse>(CommunityGoalErrorCodes.AttemptNotFound,
-                    "Pass the attempt returned by StartGoalAttempt.", "attempt complete"));
+                return Fail<CompleteGoalAttemptResponse>(CommunityGoalErrorCodes.AttemptNotFound,
+                    "Pass the attempt returned by StartGoalAttempt.", "attempt complete");
 
             if (contribution < 0)
-                return UniTask.FromResult(Fail<CompleteGoalAttemptResponse>(CommunityGoalErrorCodes.InvalidContribution,
-                    "Contribution must be 0 or more.", "attempt complete"));
+                return Fail<CompleteGoalAttemptResponse>(CommunityGoalErrorCodes.InvalidContribution,
+                    "Contribution must be 0 or more.", "attempt complete");
 
-            if (string.IsNullOrEmpty(_privateKey) || _privateKey.Length < MinPrivateKeyLength)
-                return UniTask.FromResult(Fail<CompleteGoalAttemptResponse>(CommunityGoalErrorCodes.RequestFailed,
-                    "The game's private key is not set; pass it to Initialize.", "attempt complete"));
+            // Only a key-based signer needs the key; a game's own signer holds it elsewhere.
+            if (_signer is LocalPayloadSigner local && !local.HasKey)
+                return Fail<CompleteGoalAttemptResponse>(CommunityGoalErrorCodes.RequestFailed,
+                    "The game's private key is not set; pass it to Initialize.", "attempt complete");
 
             var payload = new CompleteGoalAttemptPayload
             {
@@ -89,18 +88,19 @@ namespace FunticoGamesSDK.CommunityGoalProviders
                 FightHash = fightHash
             };
 
-            var aesKey = Id(attempt.AttemptId).Substring(0, 8) + _privateKey.Substring(0, 8);
-            var encrypted = AESNonDynamic.Encrypt(JsonConvert.SerializeObject(payload), aesKey);
-            var hash = HashUtils.HashString(encrypted, _privateKey.Substring(8));
+            var signed = await PayloadSigning.Sign(_signer, PayloadKind.CommunityGoal, Id(attempt.AttemptId), payload);
+            if (signed == null)
+                return Fail<CompleteGoalAttemptResponse>(CommunityGoalErrorCodes.RequestFailed,
+                    "The result could not be signed, so it was not sent. Retry with the same attempt.", "attempt complete");
 
             var request = new CompleteGoalAttemptRequestEncrypted
             {
                 AttemptId = attempt.AttemptId,
-                EncryptedData = encrypted,
-                Hash = hash
+                EncryptedData = signed.Data,
+                Hash = signed.Hash
             };
 
-            return CompleteAttempt(request);
+            return await CompleteAttempt(request);
         }
 
         public async UniTask<CommunityGoalLeaderboardResponse> GetCommunityGoalLeaderboard(Guid goalId, int page = 1, int limit = 20)

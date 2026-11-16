@@ -1,6 +1,7 @@
 using System;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
+using FunticoGamesSDK.Encryption;
 using FunticoGamesSDK.SessionsManagement;
 using FunticoGamesSDK.UserDataProviders;
 using FunticoGamesSDK.ViewModels;
@@ -12,7 +13,7 @@ namespace FunticoGamesSDK.TournamentsProviders
         private readonly IUserDataService _userDataService;
         private readonly IClientSessionManager _clientSessionManager;
 
-        public TournamentsProvider(string privateKey, IUserDataService userDataService, IClientSessionManager clientSessionManager) : base(privateKey)
+        public TournamentsProvider(IPayloadSigner signer, IUserDataService userDataService, IClientSessionManager clientSessionManager) : base(signer)
         {
             _userDataService = userDataService;
             _clientSessionManager = clientSessionManager;

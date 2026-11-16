@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
@@ -17,11 +18,11 @@ namespace FunticoGamesSDK.SessionsManagement
 		private List<string> _sessionLogs = new List<string>();
 		private readonly Dictionary<string, int> _collected = new Dictionary<string, int>();
 		private SavedSessionResponse _currentSessionData;
-		private string _privateKey;
+		private readonly IPayloadSigner _signer;
 
-		public ClientSessionManager(IUserDataService userDataService, string privateKey)
+		public ClientSessionManager(IUserDataService userDataService, IPayloadSigner signer)
 		{
-			_privateKey = privateKey;
+			_signer = signer;
 			_userDataService = userDataService;
 		}
 
@@ -39,7 +40,13 @@ namespace FunticoGamesSDK.SessionsManagement
 				return null;
 
 			_currentSessionData = data;
-			var decryptedData = AESNonDynamic.Decrypt(data.Data, GetEncryptionKey());
+			var decryptedData = await _signer.DecryptSession(CurrentUserId(), data.Data);
+			if (decryptedData == null)
+			{
+				Logger.LogError("The saved session could not be decrypted.");
+				return null;
+			}
+
 			var sessionModel = JsonConvert.DeserializeObject<SessionModel>(decryptedData);
 			if (sessionModel == null)
 				return null;
@@ -57,7 +64,13 @@ namespace FunticoGamesSDK.SessionsManagement
 			// Counts left by a run whose result never went through must not ride on this one.
 			_collected.Clear();
 
-			var encryptedData = EncryptCurrentSessionData(json);
+			var encryptedData = await EncryptCurrentSessionData(json);
+			if (encryptedData == null)
+			{
+				_currentSessionData = null;
+				return null;
+			}
+
 			encryptedData.GameType = (int) gameType;
 			encryptedData.SessionId = eventId;
 			encryptedData.SaveSessionId = saveSessionId;
@@ -69,15 +82,20 @@ namespace FunticoGamesSDK.SessionsManagement
 
 		public async UniTask<bool> UpdateSession_Client(string json)
 		{
-			if (_currentSessionData == null)
+			// The signer may answer later; the checkpoint belongs to the session open now.
+			var session = _currentSessionData;
+			if (session == null)
 			{
 				Logger.LogError("Can't find started session");
 				return false;
 			}
 
-			var encryptedData = EncryptCurrentSessionData(json);
-			encryptedData.Id = _currentSessionData.Id;
-			encryptedData.Hash = HashUtils.HashString(encryptedData.Data, _currentSessionData.SessionId);
+			var encryptedData = await EncryptCurrentSessionData(json);
+			if (encryptedData == null)
+				return false;
+
+			encryptedData.Id = session.Id;
+			encryptedData.Hash = HashUtils.HashString(encryptedData.Data, session.SessionId);
 			var success = await HTTPClient.Post_Short(APIConstants.UPDATE_SESSION, encryptedData);
 			return success;
 		}
@@ -111,16 +129,11 @@ namespace FunticoGamesSDK.SessionsManagement
 
 		public void ClearSessionCollected_Client() => _collected.Clear();
 
-		private string GetEncryptionKey()
-		{
-			var userGuidStr = IntToGuidHelper.IntToGuid(_userDataService.GetCachedUserData().UserId).ToString();
-			var firstPart = userGuidStr.Substring(0, 8);
-			var secondPart = _privateKey.Substring(_privateKey.Length - 8); 
+		private string CurrentUserId() =>
+			_userDataService.GetCachedUserData().UserId.ToString(CultureInfo.InvariantCulture);
 
-			return firstPart + secondPart;
-		}
-
-		private SavedSessionResponse EncryptCurrentSessionData(string json)
+		/// <summary>The session encrypted by the signer; null when the signer failed.</summary>
+		private async UniTask<SavedSessionResponse> EncryptCurrentSessionData(string json)
 		{
 			var data = new SessionModel()
 			{
@@ -129,11 +142,17 @@ namespace FunticoGamesSDK.SessionsManagement
 				Collected = _collected.Count > 0 ? _collected : null
 			};
 
-			var encryptedData = new SavedSessionResponse()
+			var encrypted = await _signer.EncryptSession(CurrentUserId(), JsonConvert.SerializeObject(data));
+			if (string.IsNullOrEmpty(encrypted))
 			{
-				Data = AESNonDynamic.Encrypt(JsonConvert.SerializeObject(data), GetEncryptionKey())
+				Logger.LogError("The session could not be encrypted, so it was not saved.");
+				return null;
+			}
+
+			return new SavedSessionResponse()
+			{
+				Data = encrypted
 			};
-			return encryptedData;
 		}
 	}
 }

@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.APIModels.UserData;
 using FunticoGamesSDK.Encryption;
 using FunticoGamesSDK.NetworkUtils;
-using Newtonsoft.Json;
 
 namespace FunticoGamesSDK.UserDataProviders
 {
@@ -14,7 +14,7 @@ namespace FunticoGamesSDK.UserDataProviders
 	{
 		#region Fields & Properties
 
-		private readonly string _privateKey;
+		private readonly IPayloadSigner _signer;
 		private UserData Data { get; set; }
 		private BalanceResponse Balance { get; set; }
 		private List<VoucherData> Vouchers { get; set; } = new List<VoucherData>();
@@ -23,9 +23,9 @@ namespace FunticoGamesSDK.UserDataProviders
 
 		#endregion
 
-		public UserDataService(string privateKey)
+		public UserDataService(IPayloadSigner signer)
 		{
-			_privateKey = privateKey;
+			_signer = signer;
 		}
 
 		#region Public Methods
@@ -111,15 +111,15 @@ namespace FunticoGamesSDK.UserDataProviders
 				Collected = collected != null && collected.Count > 0 ? collected : null
 			};
 
-			var userId = userData.UserId.ToString();
-			var gameDataKey = userId.PadLeft(8, '0').Substring(0, 8) + _privateKey.Substring(0, 8);
-			var encrypted = AESNonDynamic.Encrypt(JsonConvert.SerializeObject(practiceRequest), gameDataKey);
-			var hashSummary = HashUtils.HashString(encrypted, _privateKey.Substring(8));
+			var userId = userData.UserId.ToString(CultureInfo.InvariantCulture);
+			var signed = await PayloadSigning.Sign(_signer, PayloadKind.Practice, userId, practiceRequest);
+			if (signed == null)
+				return false;
 
 			var request = new CompletePracticeRequestEncoded()
 			{
-				Data = encrypted,
-				Hash = hashSummary
+				Data = signed.Data,
+				Hash = signed.Hash
 			};
 
 			var success = await HTTPClient.Post_Short(APIConstants.COMPLETE_PRACTICE, request);

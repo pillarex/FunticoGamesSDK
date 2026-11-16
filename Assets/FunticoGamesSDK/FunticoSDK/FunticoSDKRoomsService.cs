@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.AuthDataProviders;
+using FunticoGamesSDK.Encryption;
 using FunticoGamesSDK.RoomsProviders;
 using FunticoGamesSDK.SessionsManagement;
 using FunticoGamesSDK.UserDataProviders;
@@ -13,11 +14,11 @@ namespace FunticoGamesSDK
 	{
 		private IRoomsProvider _roomsProvider;
 
-		private void SetupRoomsProvider(string privateGameKey, IUserDataService userDataService,
+		private void SetupRoomsProvider(IPayloadSigner signer, IUserDataService userDataService,
 			IAuthDataProvider authDataProvider, IClientSessionManager clientSessionManager,
 			IServerSessionManager serverSessionManager, IErrorHandler errorHandler)
 		{
-			_roomsProvider = new RoomsProvider(privateGameKey, userDataService, authDataProvider, clientSessionManager,
+			_roomsProvider = new RoomsProvider(signer, userDataService, authDataProvider, clientSessionManager,
 				serverSessionManager, errorHandler);
 		}
 

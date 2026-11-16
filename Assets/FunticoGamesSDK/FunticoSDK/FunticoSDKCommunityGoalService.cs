@@ -12,7 +12,7 @@ namespace FunticoGamesSDK
 
 		private void SetupCommunityGoalProvider()
 		{
-			_communityGoalProvider = new CommunityGoalProvider(_privateGameKey);
+			_communityGoalProvider = new CommunityGoalProvider(_signer);
 		}
 
 		public UniTask<CommunityGoalResponse> GetCommunityGoal(string chainKey) =>

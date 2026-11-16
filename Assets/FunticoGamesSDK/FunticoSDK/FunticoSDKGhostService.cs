@@ -12,7 +12,7 @@ namespace FunticoGamesSDK
 
 		private void SetupGhostProvider()
 		{
-			_ghostProvider = new GhostProvider(_privateGameKey);
+			_ghostProvider = new GhostProvider(_signer);
 		}
 
 		public UniTask<GhostPoolsResponse> GetGhostPools() => _ghostProvider.GetGhostPools();

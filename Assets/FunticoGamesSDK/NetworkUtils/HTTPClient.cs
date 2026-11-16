@@ -229,7 +229,9 @@ namespace FunticoGamesSDK.NetworkUtils
             request.SetRequestHeader("Content-Type", "application/json");
             request.SetRequestHeader("X-User-Key", _publicGameKey);
 #if SERVER || UNITY_SERVER
-            request.SetRequestHeader("X-Server-Key", HashUtils.HashString(_privateGameKey, _publicGameKey));
+            // A build initialized with a signer has no key to derive the server key from.
+            if (!string.IsNullOrEmpty(_privateGameKey))
+                request.SetRequestHeader("X-Server-Key", HashUtils.HashString(_privateGameKey, _publicGameKey));
             request.SetRequestHeader("X-Server-Session-Id", _sessionId);
 #else
             request.SetRequestHeader("X-Client-Session-Id", _sessionId);

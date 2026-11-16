@@ -14,14 +14,13 @@ namespace FunticoGamesSDK.GhostProviders
     public class GhostProvider : IGhostProvider
     {
         private const int MaxExclusions = 20;
-        private const int MinPrivateKeyLength = 9;
 
-        private readonly string _privateKey;
+        private readonly IPayloadSigner _signer;
         private GhostErrorResponse _lastError;
 
-        public GhostProvider(string privateKey)
+        public GhostProvider(IPayloadSigner signer)
         {
-            _privateKey = privateKey;
+            _signer = signer;
         }
 
         #region Public
@@ -87,15 +86,16 @@ namespace FunticoGamesSDK.GhostProviders
             return Post<GhostUploadResponse>(APIConstants.Post_Ghost_Upload, request, "upload");
         }
 
-        public UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null)
+        public async UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null)
         {
             if (!Enum.IsDefined(typeof(GhostOutcome), outcome))
-                return UniTask.FromResult(Fail<GhostReportResponse>(GhostErrorCodes.InvalidOutcome,
-                    "Outcome must be Win, Loss or Draw.", "report"));
+                return Fail<GhostReportResponse>(GhostErrorCodes.InvalidOutcome,
+                    "Outcome must be Win, Loss or Draw.", "report");
 
-            if (string.IsNullOrEmpty(_privateKey) || _privateKey.Length < MinPrivateKeyLength)
-                return UniTask.FromResult(Fail<GhostReportResponse>(GhostErrorCodes.RequestFailed,
-                    "The game's private key is not set; pass it to Initialize.", "report"));
+            // Only a key-based signer needs the key; a game's own signer holds it elsewhere.
+            if (_signer is LocalPayloadSigner local && !local.HasKey)
+                return Fail<GhostReportResponse>(GhostErrorCodes.RequestFailed,
+                    "The game's private key is not set; pass it to Initialize.", "report");
 
             var payload = new GhostReportPayload
             {
@@ -104,18 +104,19 @@ namespace FunticoGamesSDK.GhostProviders
                 FightHash = fightHash
             };
 
-            var aesKey = matchId.ToString().Substring(0, 8) + _privateKey.Substring(0, 8);
-            var encrypted = AESNonDynamic.Encrypt(JsonConvert.SerializeObject(payload), aesKey);
-            var hash = HashUtils.HashString(encrypted, _privateKey.Substring(8));
+            var signed = await PayloadSigning.Sign(_signer, PayloadKind.Ghost, matchId.ToString(), payload);
+            if (signed == null)
+                return Fail<GhostReportResponse>(GhostErrorCodes.RequestFailed,
+                    "The result could not be signed, so it was not sent. Retry with the same match id.", "report");
 
             var request = new GhostReportRequest
             {
                 MatchId = matchId,
-                EncryptedData = encrypted,
-                Hash = hash
+                EncryptedData = signed.Data,
+                Hash = signed.Hash
             };
 
-            return Post<GhostReportResponse>(APIConstants.Post_Ghost_Report, request, "report");
+            return await Post<GhostReportResponse>(APIConstants.Post_Ghost_Report, request, "report");
         }
 
         public UniTask<GhostReportSummaryResponse> GetGhostReportSummary(string pool) =>

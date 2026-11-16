@@ -21,16 +21,16 @@ namespace FunticoGamesSDK.CampaignProviders
         private const string ErrorAttemptNotFound = "AttemptNotFound";
         private const string ErrorCompletionTooFast = "CompletionTooFast";
 
-        private readonly string _privateKey;
+        private readonly IPayloadSigner _signer;
         private readonly IClientSessionManager _clientSessionManager;
 
         private CampaignAvailabilityResponse _availability;
         private CampaignLevelsResponse _levels;
         private StartLevelResponse _activeAttempt;
 
-        public CampaignProvider(string privateKey, IClientSessionManager clientSessionManager)
+        public CampaignProvider(IPayloadSigner signer, IClientSessionManager clientSessionManager)
         {
-            _privateKey = privateKey;
+            _signer = signer;
             _clientSessionManager = clientSessionManager;
         }
 
@@ -104,25 +104,30 @@ namespace FunticoGamesSDK.CampaignProviders
             if (!ValidateMetrics(metrics))
                 return null;
 
+            // The signer may answer later; the attempt this result belongs to is the one active now.
+            var attempt = _activeAttempt;
             var gameEvents = _clientSessionManager?.GetCurrentSessionEvents_Client() ?? new List<string>();
             var payload = new CampaignCompletePayload
             {
-                AttemptId = _activeAttempt.AttemptId,
-                LevelId = _activeAttempt.LevelId,
+                AttemptId = attempt.AttemptId,
+                LevelId = attempt.LevelId,
                 Metrics = metrics,
                 GameEvents = gameEvents
             };
 
-            var attemptIdStr = _activeAttempt.AttemptId.ToString();
-            var aesKey = attemptIdStr.Substring(0, 8) + _privateKey.Substring(0, 8);
-            var encrypted = AESNonDynamic.Encrypt(JsonConvert.SerializeObject(payload), aesKey);
-            var hash = HashUtils.HashString(encrypted, _privateKey.Substring(8));
+            var signed = await PayloadSigning.Sign(_signer, PayloadKind.Campaign, attempt.AttemptId.ToString(), payload);
+            if (signed == null)
+            {
+                // Nothing was sent: the attempt stays active, so the game may retry.
+                Logger.LogError("Failed to complete campaign level");
+                return null;
+            }
 
             var request = new CampaignCompleteLevelRequest
             {
-                AttemptId = _activeAttempt.AttemptId,
-                EncryptedData = encrypted,
-                Hash = hash
+                AttemptId = attempt.AttemptId,
+                EncryptedData = signed.Data,
+                Hash = signed.Hash
             };
 
             (bool success, CompleteLevelResponse response) = await HTTPClient.Post<CompleteLevelResponse>(

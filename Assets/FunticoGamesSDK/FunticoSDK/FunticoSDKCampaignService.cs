@@ -12,7 +12,7 @@ namespace FunticoGamesSDK
 
 		private void SetupCampaignProvider()
 		{
-			_campaignProvider = new CampaignProvider(_privateGameKey, _clientSessionManager);
+			_campaignProvider = new CampaignProvider(_signer, _clientSessionManager);
 		}
 
 		public UniTask<CampaignAvailabilityResponse> GetCampaignAvailability(bool useCache = true) =>
