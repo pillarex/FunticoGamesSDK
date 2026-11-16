@@ -81,6 +81,41 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>When this goal is closed: the goal opened after it, if any.</summary>
         public Guid? NextGoalId { get; set; }
+
+        /// <summary>
+        /// The goal's reward brackets, top-down: at settlement each contributor gets the first bracket
+        /// their final place matches, and only that one.
+        /// </summary>
+        public List<CommunityGoalBracketDto> Rewards { get; set; } = new List<CommunityGoalBracketDto>();
+    }
+
+    /// <summary>One reward bracket of a goal: who falls into it and what it pays, as configured for display.</summary>
+    public class CommunityGoalBracketDto
+    {
+        /// <summary>The bracket's key; <see cref="CommunityGoalMeDto.Bracket"/> names it.</summary>
+        public string Name { get; set; }
+
+        /// <summary>What to show for the bracket ("#1", "TOP 10%"). May be null.</summary>
+        public string Label { get; set; }
+
+        /// <summary>Exactly one of MaxPlace, MaxPercentile and AnyContribution is set: final places 1..MaxPlace.</summary>
+        public int? MaxPlace { get; set; }
+
+        /// <summary>Final place x 100 / contributors at most this.</summary>
+        public double? MaxPercentile { get; set; }
+
+        /// <summary>Every contributor not in an earlier bracket.</summary>
+        public bool AnyContribution { get; set; }
+
+        /// <summary>What the bracket pays, as configured for display. The actual items are drawn at settlement.</summary>
+        public List<CommunityGoalRewardDisplayDto> Display { get; set; } = new List<CommunityGoalRewardDisplayDto>();
+    }
+
+    public class CommunityGoalRewardDisplayDto
+    {
+        public string Name { get; set; }
+        public string ImageUrl { get; set; }
+        public int? Amount { get; set; }
     }
 
     public class CommunityGoalMeDto
@@ -95,6 +130,9 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>How much the player's contributions added to CurrentValue.</summary>
         public long Contributed { get; set; }
+
+        /// <summary>The player's largest single accepted contribution to this goal ("best strike").</summary>
+        public long Best { get; set; }
 
         /// <summary>Completed attempts on this goal.</summary>
         public int Attempts { get; set; }
@@ -116,6 +154,18 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>Settled goals: the reward bracket the final place fell into.</summary>
         public string Bracket { get; set; }
+
+        /// <summary>
+        /// Settled goals: where the bracket rewards are, one of <see cref="CommunityGoalRewardStatuses"/>.
+        /// Null before settlement or for a non-contributor.
+        /// </summary>
+        public string RewardStatus { get; set; }
+
+        /// <summary>
+        /// What this goal paid the player, with item names and images. GetRecentRewards lists the same
+        /// entries with Source "CommunityGoal".
+        /// </summary>
+        public List<RecentReward> Rewards { get; set; } = new List<RecentReward>();
     }
 
     /// <summary>One attempt on a goal. Pass it to CompleteGoalAttempt when the attempt is played.</summary>
@@ -231,6 +281,12 @@ namespace FunticoGamesSDK.APIModels
         /// <summary>True when this contribution raised the player's score.</summary>
         public bool ScoreImproved { get; set; }
 
+        /// <summary>The player's largest single accepted contribution to this goal, this one included.</summary>
+        public long Best { get; set; }
+
+        /// <summary>This contribution beat every earlier one of the player on this goal (the same on a replay).</summary>
+        public bool IsNewBest { get; set; }
+
         public int? Place { get; set; }
 
         /// <summary>Null when the chain has no daily limit.</summary>
@@ -266,8 +322,85 @@ namespace FunticoGamesSDK.APIModels
         public string AvatarUrl { get; set; }
         public long Score { get; set; }
         public long Contributed { get; set; }
+
+        /// <summary>The player's largest single accepted contribution to this goal.</summary>
+        public long Best { get; set; }
+
         public int Attempts { get; set; }
         public bool IsMe { get; set; }
+    }
+
+    /// <summary>Response of GetCommunityGoalHistory: the chain's past goals, newest first.</summary>
+    public class CommunityGoalHistoryResponse
+    {
+        public List<CommunityGoalHistoryEntryDto> Items { get; set; } = new List<CommunityGoalHistoryEntryDto>();
+        public int Total { get; set; }
+        public int Page { get; set; }
+        public int Limit { get; set; }
+        public bool HasMore { get; set; }
+    }
+
+    public class CommunityGoalHistoryEntryDto
+    {
+        public Guid GoalId { get; set; }
+        public int Number { get; set; }
+        public string Name { get; set; }
+
+        /// <summary><see cref="CommunityGoalStatuses.Closed"/> or <see cref="CommunityGoalStatuses.Settled"/>.</summary>
+        public string Status { get; set; }
+
+        public long TargetValue { get; set; }
+        public long CurrentValue { get; set; }
+        public DateTime OpenedAt { get; set; }
+        public DateTime? ClosedAt { get; set; }
+
+        /// <summary>How long the goal held out, in seconds.</summary>
+        public long LifetimeSeconds { get; set; }
+
+        public int ContributorCount { get; set; }
+
+        /// <summary>The game's own data for this goal, exactly as it was configured.</summary>
+        public string PayloadJson { get; set; }
+
+        /// <summary>The signed-in player's part in this goal; null when nobody is signed in.</summary>
+        public CommunityGoalHistoryMeDto Me { get; set; }
+    }
+
+    public class CommunityGoalHistoryMeDto
+    {
+        public bool IsContributor { get; set; }
+        public long Score { get; set; }
+        public long Contributed { get; set; }
+        public long Best { get; set; }
+        public int Attempts { get; set; }
+
+        /// <summary>Contributed / the goal's CurrentValue, 0..1.</summary>
+        public double Share { get; set; }
+
+        public int? FinalPlace { get; set; }
+        public string Bracket { get; set; }
+
+        /// <summary>One of <see cref="CommunityGoalRewardStatuses"/>; null before settlement or for a non-contributor.</summary>
+        public string RewardStatus { get; set; }
+    }
+
+    /// <summary>Values of <see cref="CommunityGoalMeDto.RewardStatus"/>.</summary>
+    public static class CommunityGoalRewardStatuses
+    {
+        /// <summary>No bracket for this place (or nothing payable).</summary>
+        public const string None = "None";
+
+        /// <summary>Placed in a bracket; the rewards are not drawn yet (usually within a minute of settling).</summary>
+        public const string Pending = "Pending";
+
+        /// <summary>Drawn; at least one is still on its way to the inventory (at the latest after the next sign-in).</summary>
+        public const string Queued = "Queued";
+
+        /// <summary>Everything drawn has arrived. A draw may come up empty.</summary>
+        public const string Delivered = "Delivered";
+
+        /// <summary>Nothing is left to send, but part of it was not accepted.</summary>
+        public const string Failed = "Failed";
     }
 
     /// <summary>

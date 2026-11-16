@@ -6,6 +6,7 @@ using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.Encryption;
 using FunticoGamesSDK.NetworkUtils;
 using Newtonsoft.Json;
+using UnityEngine;
 using UnityEngine.Networking;
 using Logger = FunticoGamesSDK.Logging.Logger;
 
@@ -120,11 +121,111 @@ namespace FunticoGamesSDK.CommunityGoalProviders
             return response;
         }
 
+        public async UniTask<CommunityGoalHistoryResponse> GetCommunityGoalHistory(string chainKey, int page = 1, int limit = 10)
+        {
+            if (string.IsNullOrEmpty(chainKey))
+                return Fail<CommunityGoalHistoryResponse>(CommunityGoalErrorCodes.ChainNotFound, "The chain key is empty.", "history");
+
+            var url = APIConstants.WithQuery(
+                APIConstants.GetUrlAPIWithId(APIConstants.Get_Community_Goal, Uri.EscapeDataString(chainKey)) + "/history",
+                "page=" + page.ToString(CultureInfo.InvariantCulture),
+                "limit=" + limit.ToString(CultureInfo.InvariantCulture));
+
+            var response = await Get<CommunityGoalHistoryResponse>(url, "history");
+            if (response == null)
+                return null;
+
+            response.Items ??= new List<CommunityGoalHistoryEntryDto>();
+            response.Items.RemoveAll(entry => entry == null);
+            return response;
+        }
+
+        public CommunityGoalWatch WatchCommunityGoal(Guid goalId, Action<CommunityGoalLiveResponse> onChange,
+            Action<CommunityGoalErrorResponse> onError = null, int minIntervalSeconds = 2, bool pollInBackground = false)
+        {
+            var watch = new CommunityGoalWatch();
+            RunWatch(goalId, onChange, onError, Math.Max(1, minIntervalSeconds), pollInBackground, watch).Forget();
+            return watch;
+        }
+
         public CommunityGoalErrorResponse GetLastCommunityGoalError() => _lastError;
 
         #endregion
 
         #region Private
+
+        /// <summary>
+        /// The polling loop of <see cref="WatchCommunityGoal"/>: one live read, then a wait of the
+        /// interval the server asked for, until stopped or the goal is settled (it never changes again).
+        /// </summary>
+        private async UniTaskVoid RunWatch(Guid goalId, Action<CommunityGoalLiveResponse> onChange,
+            Action<CommunityGoalErrorResponse> onError, int minIntervalSeconds, bool pollInBackground, CommunityGoalWatch watch)
+        {
+            var token = watch.Token;
+            var interval = 5;
+            string last = null;
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    // In the background (no focus on desktop and WebGL, paused on mobile) nobody sees the value.
+                    if (!pollInBackground && !Application.isFocused)
+                    {
+                        await UniTask.WaitUntil(() => Application.isFocused, cancellationToken: token);
+                        continue;
+                    }
+
+                    var live = await GetCommunityGoalLive(goalId);
+                    if (token.IsCancellationRequested)
+                        break;
+
+                    if (live != null)
+                    {
+                        if (live.PollAfterSeconds > 0)
+                            interval = live.PollAfterSeconds;
+
+                        var key = $"{live.Status}|{live.CurrentValue}|{live.ContributorCount}|{live.NextGoalId}";
+                        if (key != last)
+                        {
+                            last = key;
+                            Notify(onChange, live);
+                        }
+
+                        if (live.Status == CommunityGoalStatuses.Settled)
+                            break;
+                    }
+                    else
+                    {
+                        Notify(onError, GetLastCommunityGoalError());
+                    }
+
+                    await UniTask.Delay(TimeSpan.FromSeconds(Math.Max(minIntervalSeconds, interval)), true, PlayerLoopTiming.Update, token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Stopped.
+            }
+            finally
+            {
+                watch.MarkStopped();
+            }
+        }
+
+        /// <summary>A throwing callback must not end the watch.</summary>
+        private static void Notify<T>(Action<T> callback, T value)
+        {
+            if (callback == null)
+                return;
+            try
+            {
+                callback(value);
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Community goal watch callback failed: {e}");
+            }
+        }
 
         private async UniTask<CompleteGoalAttemptResponse> CompleteAttempt(CompleteGoalAttemptRequestEncrypted request)
         {
@@ -234,15 +335,31 @@ namespace FunticoGamesSDK.CommunityGoalProviders
             if (response.Chain != null)
                 response.Chain.Milestones ??= new List<double>();
             Normalize(response.Goal);
-            Normalize(response.Me?.OpenAttempt);
+            if (response.Me != null)
+            {
+                Normalize(response.Me.OpenAttempt);
+                response.Me.Rewards ??= new List<RecentReward>();
+                response.Me.Rewards.RemoveAll(reward => reward == null);
+                foreach (var reward in response.Me.Rewards)
+                    reward.Items ??= new List<RecentRewardItem>();
+            }
             return response;
         }
 
         /// <summary>Guarantees non-null lists so callers can read them without null checks.</summary>
         private static void Normalize(CommunityGoalDto goal)
         {
-            if (goal != null)
-                goal.MilestonesPassed ??= new List<double>();
+            if (goal == null)
+                return;
+
+            goal.MilestonesPassed ??= new List<double>();
+            goal.Rewards ??= new List<CommunityGoalBracketDto>();
+            goal.Rewards.RemoveAll(bracket => bracket == null);
+            foreach (var bracket in goal.Rewards)
+            {
+                bracket.Display ??= new List<CommunityGoalRewardDisplayDto>();
+                bracket.Display.RemoveAll(shown => shown == null);
+            }
         }
 
         private static void Normalize(GoalAttemptDto attempt)

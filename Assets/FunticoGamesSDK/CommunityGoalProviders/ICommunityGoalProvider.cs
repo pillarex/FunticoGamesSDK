@@ -66,6 +66,31 @@ namespace FunticoGamesSDK.CommunityGoalProviders
         UniTask<CommunityGoalLeaderboardResponse> GetCommunityGoalLeaderboard(Guid goalId, int page = 1, int limit = 20);
 
         /// <summary>
+        /// Fetches the chain's past goals (closed or settled), newest first, with the signed-in
+        /// player's part in each: score, best strike, share of the goal, final place, bracket and
+        /// reward status. For one goal's full state and the rewards it paid, use GetCommunityGoalById.
+        /// Returns null on failure.
+        /// </summary>
+        /// <param name="chainKey">The chain key, e.g. "world-boss".</param>
+        /// <param name="page">1-based page number.</param>
+        /// <param name="limit">Entries per page, 1-20.</param>
+        UniTask<CommunityGoalHistoryResponse> GetCommunityGoalHistory(string chainKey, int page = 1, int limit = 10);
+
+        /// <summary>
+        /// Polls the goal's live state at the interval the server asks for and calls
+        /// <paramref name="onChange"/> whenever the value, status or contributor count changes (and once
+        /// at the start). Polling pauses while the application has no focus and stops by itself once the
+        /// goal is settled. Stop the returned watch when the goal leaves the screen.
+        /// </summary>
+        /// <param name="goalId">The goal to follow.</param>
+        /// <param name="onChange">Called on the main thread with the new live state.</param>
+        /// <param name="onError">Optional: called when a poll fails; polling goes on.</param>
+        /// <param name="minIntervalSeconds">Never poll more often than this, whatever the server asks.</param>
+        /// <param name="pollInBackground">Keep polling while the application has no focus.</param>
+        CommunityGoalWatch WatchCommunityGoal(Guid goalId, Action<CommunityGoalLiveResponse> onChange,
+            Action<CommunityGoalErrorResponse> onError = null, int minIntervalSeconds = 2, bool pollInBackground = false);
+
+        /// <summary>
         /// Returns why the last Community Goal call failed, or null if it succeeded (or nothing has
         /// been called yet). Compare <c>Error</c> with <see cref="CommunityGoalErrorCodes"/>.
         /// </summary>

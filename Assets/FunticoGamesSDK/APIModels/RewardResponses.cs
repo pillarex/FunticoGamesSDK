@@ -14,13 +14,13 @@ namespace FunticoGamesSDK.APIModels
     {
         public Guid Id { get; set; }
 
-        /// <summary>Room, Tournament, Practice, Campaign or Arena.</summary>
+        /// <summary>Room, Tournament, Practice, Campaign, Arena or CommunityGoal.</summary>
         public string Source { get; set; }
 
         /// <summary>The run it belongs to.</summary>
         public string RunId { get; set; }
 
-        /// <summary>The collected key or reward table that produced it.</summary>
+        /// <summary>The collected key or reward table that produced it; for a Community Goal, the reward bracket.</summary>
         public string Key { get; set; }
 
         /// <summary>See <see cref="RecentRewardStatus"/>.</summary>

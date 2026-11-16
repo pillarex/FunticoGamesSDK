@@ -2791,7 +2791,7 @@ public UniTask<RecentRewardsResponse> GetRecentRewards(int limit = 20, DateTime?
 - `Id` (Guid) - Unique id of the reward
 - `Source` (string) - `Room`, `Tournament`, `Practice`, `Campaign` or `Arena`
 - `RunId` (string) - The run it belongs to
-- `Key` (string) - The collected key or reward table that produced it
+- `Key` (string) - The collected key or reward table that produced it; for a Community Goal, the reward bracket
 - `Status` (string) - See `RecentRewardStatus`: `Queued` (on its way), `Delivered`, `Empty` (a random draw that paid nothing), `Refused`, `Failed`
 - `Items` (List<RecentRewardItem>) - `ItemId`, `GameItemId`, `Name`, `ImageUrl`, `Amount`. Empty for an `Empty` draw
 - `CreatedAt` (DateTime) / `DeliveredAt` (DateTime?) - UTC
@@ -3293,14 +3293,16 @@ void HandleGhostError(GhostErrorResponse error)
 
 A community goal is one shared counter that every player of the game pushes toward a target, for example a world boss that everyone hits. Goals belong to a chain named by its key (e.g. `"world-boss"`); the chain opens its goals one after another. A player starts an attempt (spending one of today's attempts), plays, and completes the attempt with a contribution: a whole number of 0 or more (damage dealt, coins collected, metres run...).
 
-The read methods (`GetCommunityGoal`, `GetCommunityGoalById`, `GetCommunityGoalLive`, `GetCommunityGoalLeaderboard`) work before the player signs in, so the goal can be shown on a title screen; `Me` is then null. `StartGoalAttempt` and `CompleteGoalAttempt` need a signed-in player.
+The read methods (`GetCommunityGoal`, `GetCommunityGoalById`, `GetCommunityGoalLive`, `GetCommunityGoalLeaderboard`, `GetCommunityGoalHistory`) work before the player signs in, so the goal can be shown on a title screen; `Me` is then null. `StartGoalAttempt` and `CompleteGoalAttempt` need a signed-in player.
 
 A typical flow:
 1. `GetCommunityGoal("world-boss")` - the open goal, the chain's rules and the player's own state. If `Me.OpenAttempt` is set, the player has a live attempt: resume it (step 2 returns it)
 2. `StartGoalAttempt(goal.GoalId)` - the attempt (with the phase it started in, `MilestonesAtStart`) and its goal
 3. Play, then `CompleteGoalAttempt(start.Attempt, contribution)`
-4. While the goal is on screen, poll `GetCommunityGoalLive(goalId)`, waiting `PollAfterSeconds` between calls
-5. `GetCommunityGoalLeaderboard(goalId)` for the ranking
+4. While the goal is on screen, follow it with `WatchCommunityGoal(goalId, onChange)` (or poll `GetCommunityGoalLive(goalId)` yourself, waiting `PollAfterSeconds` between calls)
+5. `GetCommunityGoalLeaderboard(goalId)` for the ranking, `GetCommunityGoalHistory("world-boss")` for past goals
+
+**Rewards.** Each goal lists its reward brackets in `Goal.Rewards`, top-down (`#1`, `#2`, `#3`, `TOP 10%`, `ANY HIT`...). When the goal settles, every contributor gets the **first** bracket their final place matches, and only that one (`Me.Bracket`). The rewards then reach the player's inventory by themselves; `Me.RewardStatus` says where they are and `Me.Rewards` lists what arrived. `GetRecentRewards` lists the same entries with `Source` = `"CommunityGoal"`.
 
 Every method calls the server (nothing is cached) and returns null on failure; `GetLastCommunityGoalError` then says why. Failures are logged and do not show an `IErrorHandler` popup.
 
@@ -3313,6 +3315,9 @@ public UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId)
 public UniTask<CompleteGoalAttemptResponse> CompleteGoalAttempt(GoalAttemptDto attempt, long contribution,
     double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null)
 public UniTask<CommunityGoalLeaderboardResponse> GetCommunityGoalLeaderboard(Guid goalId, int page = 1, int limit = 20)
+public UniTask<CommunityGoalHistoryResponse> GetCommunityGoalHistory(string chainKey, int page = 1, int limit = 10)
+public CommunityGoalWatch WatchCommunityGoal(Guid goalId, Action<CommunityGoalLiveResponse> onChange,
+    Action<CommunityGoalErrorResponse> onError = null, int minIntervalSeconds = 2, bool pollInBackground = false)
 public CommunityGoalErrorResponse GetLastCommunityGoalError()
 ```
 
@@ -3338,16 +3343,41 @@ public CommunityGoalErrorResponse GetLastCommunityGoalError()
 - `ContributorCount` (int)
 - `PayloadJson` (string) - The game's own data for this goal (e.g. which boss to show), exactly as it was configured; may be null
 - `NextGoalId` (Guid?) - For a closed goal: the goal opened after it, if any
+- `Rewards` (List\<CommunityGoalBracketDto\>) - The reward brackets, top-down: `Name` (the key `Me.Bracket` names), `Label` (what to show, e.g. `"#1"` or `"TOP 10%"`; may be null), exactly one of `MaxPlace` (int?, final places 1..MaxPlace), `MaxPercentile` (double?, final place x 100 / contributors at most this) or `AnyContribution` (bool, everyone who contributed), and `Display` (what the bracket pays, as configured for display: `Name`, `ImageUrl`, `Amount`). The actual items are drawn when the goal settles
 
 **CommunityGoalMeDto Properties:**
-- `IsContributor` (bool), `Score` (long), `Place` (int?, null until the player contributes), `Contributed` (long), `Attempts` (int, completed attempts on this goal)
+- `IsContributor` (bool), `Score` (long), `Place` (int?, null until the player contributes), `Contributed` (long), `Best` (long, the player's largest single accepted contribution: the "best strike"), `Attempts` (int, completed attempts on this goal)
 - `AttemptsUsedToday` (int) / `AttemptsLeftToday` (int?, null when the chain has no daily limit) / `ResetsAt` (DateTime, UTC midnight) - Attempts are counted per UTC day across the whole chain
 - `OpenAttempt` (GoalAttemptDto) - The player's live attempt in the chain, possibly on another goal; null when there is none
 - `FinalPlace` (int?) / `Bracket` (string) - For a settled goal: the final place and the reward bracket it fell into
+- `RewardStatus` (string) - For a settled goal: `CommunityGoalRewardStatuses` - `"None"` (no bracket, or nothing payable), `"Pending"` (placed, not drawn yet: usually within a minute of settling), `"Queued"` (drawn, at least one still on its way; it arrives by itself, at the latest after the next sign-in), `"Delivered"` (everything drawn has arrived; a draw may come up empty), `"Failed"` (nothing left to send, but part of it was not accepted). Null before settlement or for a non-contributor
+- `Rewards` (List\<RecentReward\>) - What this goal paid the player, with item names and images: the same shape `GetRecentRewards` returns
 
 ### `GetCommunityGoalLive`
 
-The goal's shared state only (`GoalId`, `Number`, `Status`, `TargetValue`, `CurrentValue`, `Progress`, `MilestonesPassed`, `ContributorCount`, `NextGoalId`, `PollAfterSeconds`, `ServerTime`). It is cheap: poll it while the goal is on screen, waiting `PollAfterSeconds` between calls, and react to new `MilestonesPassed` entries or a `Status` change.
+The goal's shared state only (`GoalId`, `Number`, `Status`, `TargetValue`, `CurrentValue`, `Progress`, `MilestonesPassed`, `ContributorCount`, `NextGoalId`, `PollAfterSeconds`, `ServerTime`). It is cheap: poll it while the goal is on screen, waiting `PollAfterSeconds` between calls, and react to new `MilestonesPassed` entries or a `Status` change. `WatchCommunityGoal` does exactly that for you.
+
+### `WatchCommunityGoal`
+
+Polls the goal's live state at the interval the server asks for and calls `onChange` (on the main thread) whenever the value, status or contributor count changes, and once at the start. Polling pauses while the application has no focus (unless `pollInBackground` is `true`) and stops by itself once the goal is settled. A failed poll calls `onError` with the reason and polling goes on.
+
+**Returns:** `CommunityGoalWatch` - call `Stop()` (or `Dispose()`) when the goal leaves the screen; `IsRunning` is false once it has stopped.
+
+```csharp
+private CommunityGoalWatch _watch;
+
+void OnBossScreenOpened(Guid goalId)
+{
+    _watch = FunticoSDK.Instance.WatchCommunityGoal(goalId, live =>
+    {
+        hullBar.fillAmount = 1f - (float)live.Progress;
+        if (live.Status != CommunityGoalStatuses.Open && live.NextGoalId != null)
+            ShowBossDown(goalId, live.NextGoalId.Value);
+    });
+}
+
+void OnBossScreenClosed() => _watch?.Stop();
+```
 
 ### `StartGoalAttempt`
 
@@ -3379,6 +3409,7 @@ Completes an attempt with its contribution.
 - `MilestonesCrossed` (List\<double\>) - Milestones this contribution carried the goal past
 - `GoalStatus` (string), `GoalClosed` (bool), `ClosedByMe` (bool, this contribution reached the target), `NextGoalId` (Guid?, the goal opened after a closed one)
 - `Score` (long), `ScoreImproved` (bool), `Place` (int?)
+- `Best` (long) - The player's best strike on this goal, this one included; `IsNewBest` (bool) - this contribution beat every earlier one of the player on this goal (the same on a replay), e.g. for a "NEW BEST" banner
 - `AttemptsLeftToday` (int?), `ResetsAt` (DateTime)
 - `Replayed` (bool) - `true` when this answers a repeat of an already completed attempt
 
@@ -3391,7 +3422,27 @@ The goal's contributors ranked by score.
 
 **Parameters:** `goalId`; `page` (from 1); `limit` (entries per page, 1-100)
 
-**Returns:** `CommunityGoalLeaderboardResponse` - `GoalId`, `Items`, `Me` (the player's own row wherever it is; null until the player contributes or when nobody is signed in), `Around` (up to two rows above and below the player, the player included), `Total`, `Page`, `Limit`, `HasMore`. Each `CommunityGoalLeaderboardEntryDto` has `Place`, `Name`, `AvatarUrl`, `Score`, `Contributed`, `Attempts` and `IsMe`.
+**Returns:** `CommunityGoalLeaderboardResponse` - `GoalId`, `Items`, `Me` (the player's own row wherever it is; null until the player contributes or when nobody is signed in), `Around` (up to two rows above and below the player, the player included), `Total`, `Page`, `Limit`, `HasMore`. Each `CommunityGoalLeaderboardEntryDto` has `Place`, `Name`, `AvatarUrl`, `Score`, `Contributed`, `Best` (best strike), `Attempts` and `IsMe`.
+
+### `GetCommunityGoalHistory`
+
+The chain's past goals (closed or settled), newest first, with the signed-in player's part in each. Use it for a "previous bosses" screen; for one goal's full state and the rewards it paid, call `GetCommunityGoalById`.
+
+**Parameters:** `chainKey`; `page` (from 1); `limit` (entries per page, 1-20)
+
+**Returns:** `CommunityGoalHistoryResponse` - `Items`, `Total`, `Page`, `Limit`, `HasMore`. Each `CommunityGoalHistoryEntryDto` has `GoalId`, `Number`, `Name`, `Status`, `TargetValue`, `CurrentValue`, `OpenedAt`, `ClosedAt`, `LifetimeSeconds` (how long the goal held out), `ContributorCount`, `PayloadJson` and `Me` (null when nobody is signed in): `IsContributor`, `Score`, `Contributed`, `Best`, `Attempts`, `Share` (`Contributed` / the goal's `CurrentValue`, 0..1), `FinalPlace`, `Bracket` and `RewardStatus`.
+
+```csharp
+// "Boss down" for the goal that just closed: how long it held, the player's share.
+CommunityGoalResponse closed = await FunticoSDK.Instance.GetCommunityGoalById(closedGoalId);
+TimeSpan heldFor = closed.Goal.ClosedAt.Value - closed.Goal.OpenedAt;
+double share = closed.Me != null && closed.Goal.CurrentValue > 0 ? (double)closed.Me.Contributed / closed.Goal.CurrentValue : 0;
+
+// Previous bosses.
+CommunityGoalHistoryResponse history = await FunticoSDK.Instance.GetCommunityGoalHistory("world-boss");
+foreach (var past in history?.Items ?? new List<CommunityGoalHistoryEntryDto>())
+    AddPastBoss(past.Name, past.LifetimeSeconds, past.Me?.FinalPlace, past.Me?.RewardStatus);
+```
 
 ### `GetLastCommunityGoalError`
 
