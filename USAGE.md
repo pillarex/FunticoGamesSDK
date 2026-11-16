@@ -15,7 +15,8 @@ Complete reference guide for all public methods in Funtico SDK.
 9. [Campaign Methods](#campaign-methods)
 10. [Inventory Methods](#inventory-methods)
 11. [Ghost Matchmaking Methods](#ghost-matchmaking-methods)
-12. [Usage Examples](#usage-examples)
+12. [Community Goal Methods](#community-goal-methods)
+13. [Usage Examples](#usage-examples)
 
 ---
 
@@ -3220,6 +3221,179 @@ void HandleGhostError(GhostErrorResponse error)
 
 **Important Notes:**
 - The last error belongs to the most recent Ghost call that finished; check it right after the call that returned null
+
+---
+
+## Community Goal Methods
+
+A community goal is one shared counter that every player of the game pushes toward a target, for example a world boss that everyone hits. Goals belong to a chain named by its key (e.g. `"world-boss"`); the chain opens its goals one after another. A player starts an attempt (spending one of today's attempts), plays, and completes the attempt with a contribution: a whole number of 0 or more (damage dealt, coins collected, metres run...).
+
+The read methods (`GetCommunityGoal`, `GetCommunityGoalById`, `GetCommunityGoalLive`, `GetCommunityGoalLeaderboard`) work before the player signs in, so the goal can be shown on a title screen; `Me` is then null. `StartGoalAttempt` and `CompleteGoalAttempt` need a signed-in player.
+
+A typical flow:
+1. `GetCommunityGoal("world-boss")` - the open goal, the chain's rules and the player's own state. If `Me.OpenAttempt` is set, the player has a live attempt: resume it (step 2 returns it)
+2. `StartGoalAttempt(goal.GoalId)` - the attempt (with the phase it started in, `MilestonesAtStart`) and its goal
+3. Play, then `CompleteGoalAttempt(start.Attempt, contribution)`
+4. While the goal is on screen, poll `GetCommunityGoalLive(goalId)`, waiting `PollAfterSeconds` between calls
+5. `GetCommunityGoalLeaderboard(goalId)` for the ranking
+
+Every method calls the server (nothing is cached) and returns null on failure; `GetLastCommunityGoalError` then says why. Failures are logged and do not show an `IErrorHandler` popup.
+
+**Signatures:**
+```csharp
+public UniTask<CommunityGoalResponse> GetCommunityGoal(string chainKey)
+public UniTask<CommunityGoalResponse> GetCommunityGoalById(Guid goalId)
+public UniTask<CommunityGoalLiveResponse> GetCommunityGoalLive(Guid goalId)
+public UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId)
+public UniTask<CompleteGoalAttemptResponse> CompleteGoalAttempt(GoalAttemptDto attempt, long contribution,
+    double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null)
+public UniTask<CommunityGoalLeaderboardResponse> GetCommunityGoalLeaderboard(Guid goalId, int page = 1, int limit = 20)
+public CommunityGoalErrorResponse GetLastCommunityGoalError()
+```
+
+### `GetCommunityGoal` / `GetCommunityGoalById`
+
+`GetCommunityGoal` returns the chain's open goal, or its latest goal while the next one is not open yet. `GetCommunityGoalById` returns any goal of the game, open or past (e.g. the one an attempt belongs to).
+
+**CommunityGoalResponse Properties:**
+- `Chain` - `Key`, `Name`, `Scoring` (`CommunityGoalScorings`: `"Sum"` of all contributions, the single `"Best"`, or `"BestPerDay"`: the best of each UTC day, summed), `FreeAttemptsPerDay` (0 = no limit), `MinAttemptSeconds` (shortest accepted attempt), `AttemptTtlSeconds` (time to complete an attempt), `Milestones` (progress fractions between 0 and 1, ascending)
+- `Goal` - The goal; null when the chain has never had one
+- `AwaitingNext` (bool) - The chain has no open goal right now: the last one closed and the next is not open yet
+- `Me` - The player's own state; null when no player is signed in
+- `PollAfterSeconds` (int) - How long to wait before polling the live state
+- `ServerTime` (DateTime) - The server's clock (UTC)
+
+**CommunityGoalDto Properties:**
+- `GoalId` (Guid), `Number` (int, 1, 2, 3... in the chain), `Name` (string)
+- `Status` (string) - `CommunityGoalStatuses`: `"Open"` (accepting attempts), `"Closed"` (target reached; attempts already started may still complete and count), `"Settled"` (every late attempt is in; final places are fixed)
+- `TargetValue` / `CurrentValue` (long) - `CurrentValue` can pass `TargetValue`, because late attempts still count
+- `Progress` (double) - `CurrentValue / TargetValue`, capped at 1
+- `MilestonesPassed` (List\<double\>) - The chain's milestones the goal has passed
+- `OpenedAt` (DateTime) / `ClosedAt` (DateTime?) - UTC
+- `ContributorCount` (int)
+- `PayloadJson` (string) - The game's own data for this goal (e.g. which boss to show), exactly as it was configured; may be null
+- `NextGoalId` (Guid?) - For a closed goal: the goal opened after it, if any
+
+**CommunityGoalMeDto Properties:**
+- `IsContributor` (bool), `Score` (long), `Place` (int?, null until the player contributes), `Contributed` (long), `Attempts` (int, completed attempts on this goal)
+- `AttemptsUsedToday` (int) / `AttemptsLeftToday` (int?, null when the chain has no daily limit) / `ResetsAt` (DateTime, UTC midnight) - Attempts are counted per UTC day across the whole chain
+- `OpenAttempt` (GoalAttemptDto) - The player's live attempt in the chain, possibly on another goal; null when there is none
+- `FinalPlace` (int?) / `Bracket` (string) - For a settled goal: the final place and the reward bracket it fell into
+
+### `GetCommunityGoalLive`
+
+The goal's shared state only (`GoalId`, `Number`, `Status`, `TargetValue`, `CurrentValue`, `Progress`, `MilestonesPassed`, `ContributorCount`, `NextGoalId`, `PollAfterSeconds`, `ServerTime`). It is cheap: poll it while the goal is on screen, waiting `PollAfterSeconds` between calls, and react to new `MilestonesPassed` entries or a `Status` change.
+
+### `StartGoalAttempt`
+
+Starts an attempt on an open goal and spends one of today's attempts.
+
+**StartGoalAttemptResponse Properties:**
+- `Attempt` (GoalAttemptDto) - `AttemptId`, `GoalId`, `Seed` (int, chosen by the server), `StartedAt`, `ExpiresAt` (UTC), `GoalValueAtStart` and `MilestonesAtStart` (the goal's value and passed milestones when the attempt started: the phase to play in). All of them are the same every time the attempt is resumed
+- `Resumed` (bool) - `true` when this is the player's already-live attempt returned again; nothing was spent
+- `Goal` (CommunityGoalDto) - The goal of the attempt with its `PayloadJson` and its current state. On a resumed attempt the goal may have passed more milestones since the start: play in the phase of `Attempt.MilestonesAtStart`
+- `AttemptsLeftToday` (int?) / `ResetsAt` (DateTime)
+
+**Description:**
+A player has at most one live attempt per chain. Calling `StartGoalAttempt` while one is live returns **that attempt again** (`Resumed` = `true`), so after a reload or a crash the game can simply call it again and continue. The live attempt may belong to another goal of the chain: check `Attempt.GoalId`. `GoalClosed` and `NoAttemptsLeft` are normal outcomes (see `GetLastCommunityGoalError`).
+
+### `CompleteGoalAttempt`
+
+Completes an attempt with its contribution.
+
+**Parameters:**
+- `attempt` - The `Attempt` from `StartGoalAttempt` (or `Me.OpenAttempt`); its `AttemptId` and `GoalId` are sent
+- `contribution` - What the attempt achieved toward the goal: 0 or more. A negative value fails with `InvalidContribution` without a request
+- `clientDurationSeconds` - Optional: the game's own measure of the attempt; informative only, the server times attempts itself
+- `metrics` - Optional: numbers for analytics, up to 16 keys are kept
+- `fightHash` - Optional: your hash of the attempt (e.g. of its seed and inputs) for a later check; up to 128 characters are kept
+
+**CompleteGoalAttemptResponse Properties:**
+- `Reported` / `Accepted` (long) / `Capped` (bool) - `Accepted` is what counted; it is less than `Reported` (`Capped` = `true`) when the contribution exceeded the chain's plausibility limits
+- `ValueBefore` / `ValueAfter` / `TargetValue` (long) - The shared value around this contribution
+- `MilestonesCrossed` (List\<double\>) - Milestones this contribution carried the goal past
+- `GoalStatus` (string), `GoalClosed` (bool), `ClosedByMe` (bool, this contribution reached the target), `NextGoalId` (Guid?, the goal opened after a closed one)
+- `Score` (long), `ScoreImproved` (bool), `Place` (int?)
+- `AttemptsLeftToday` (int?), `ResetsAt` (DateTime)
+- `Replayed` (bool) - `true` when this answers a repeat of an already completed attempt
+
+**Description:**
+The result is encrypted and signed with the game's private key (AES + HMAC, keyed on the attempt id), as in `CompleteCampaignLevel`. An attempt is completed **once**: completing it again returns the first result with `Replayed` = `true`, so after a network error just call `CompleteGoalAttempt` again with the same arguments. An attempt started before the goal closed **still counts** when it is completed in time, even if another player reached the target meanwhile. Complete the attempt before `ExpiresAt` (`AttemptExpired` otherwise) and not sooner than `MinAttemptSeconds` after the start (`CompletionTooFast`); both use up the attempt with no contribution.
+
+### `GetCommunityGoalLeaderboard`
+
+The goal's contributors ranked by score.
+
+**Parameters:** `goalId`; `page` (from 1); `limit` (entries per page, 1-100)
+
+**Returns:** `CommunityGoalLeaderboardResponse` - `GoalId`, `Items`, `Me` (the player's own row wherever it is; null until the player contributes or when nobody is signed in), `Around` (up to two rows above and below the player, the player included), `Total`, `Page`, `Limit`, `HasMore`. Each `CommunityGoalLeaderboardEntryDto` has `Place`, `Name`, `AvatarUrl`, `Score`, `Contributed`, `Attempts` and `IsMe`.
+
+### `GetLastCommunityGoalError`
+
+**Returns:** `CommunityGoalErrorResponse` - `Error` (string code), `Message` (human-readable, may change), `NextGoalId` (Guid?) and `ResetsAt` (DateTime?), or null if the last call succeeded
+
+**Error codes (`CommunityGoalErrorCodes`):**
+- `ChainNotFound` - The game has no enabled chain with this key
+- `GoalNotFound` - The game has no goal with this id
+- `GoalClosed` - The goal is no longer open. `NextGoalId` names the goal open now, if any: load it with `GetCommunityGoalById` (it has its own data) before starting again
+- `NoAttemptsLeft` - Today's attempts are used up. `ResetsAt` says when they reset (UTC)
+- `AttemptNotFound` - No such attempt was started by the player
+- `AttemptExpired` - The attempt was not completed before `ExpiresAt`; it is used, with no contribution
+- `CompletionTooFast` - Completed sooner than `MinAttemptSeconds`; the attempt is used, with no contribution
+- `InvalidSignature` - The completion could not be verified (check the private key passed to `Initialize`)
+- `InvalidContribution` - The contribution is not a whole number of 0 or more
+- `Unauthorized` - Set by the SDK: the player is not authenticated. Call `Authentication` first
+- `RequestFailed` - Set by the SDK: no connection, timeout, or an unexpected response. `Message` has the details
+
+**Usage:**
+```csharp
+CommunityGoalResponse state = await FunticoSDK.Instance.GetCommunityGoal("world-boss");
+if (state?.Goal == null)
+    return; // failed, or the chain has no goal yet
+
+ShowBoss(state.Goal.PayloadJson, state.Goal.Progress);
+
+StartGoalAttemptResponse start = await FunticoSDK.Instance.StartGoalAttempt(state.Goal.GoalId);
+if (start == null)
+{
+    CommunityGoalErrorResponse error = FunticoSDK.Instance.GetLastCommunityGoalError();
+    switch (error?.Error)
+    {
+        case CommunityGoalErrorCodes.NoAttemptsLeft:
+            ShowMessage($"No attempts left. Come back at {error.ResetsAt:HH:mm} UTC.");
+            break;
+        case CommunityGoalErrorCodes.GoalClosed:
+            if (error.NextGoalId != null)
+                ShowGoal(await FunticoSDK.Instance.GetCommunityGoalById(error.NextGoalId.Value));
+            break;
+        case CommunityGoalErrorCodes.Unauthorized:
+            RequestLogin();
+            break;
+        default:
+            ShowRetryButton();
+            break;
+    }
+    return;
+}
+
+long damage = await PlayFight(start.Attempt.Seed, start.Goal.PayloadJson, start.Attempt.MilestonesAtStart);
+
+CompleteGoalAttemptResponse result = await FunticoSDK.Instance.CompleteGoalAttempt(start.Attempt, damage);
+if (result == null)
+{
+    if (FunticoSDK.Instance.GetLastCommunityGoalError()?.Error == CommunityGoalErrorCodes.RequestFailed)
+        ShowRetryButton(); // completing the same attempt again is safe
+    return;
+}
+
+ShowContribution(result.Accepted, result.ValueAfter, result.TargetValue, result.MilestonesCrossed);
+if (result.ClosedByMe)
+    ShowMessage("You landed the final blow!");
+```
+
+**Important Notes:**
+- All times are UTC
+- The last error belongs to the most recent Community Goal call that finished; check it right after the call that returned null
 
 ---
 

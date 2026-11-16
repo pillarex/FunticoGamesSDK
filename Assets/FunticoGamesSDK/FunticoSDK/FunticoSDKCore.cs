@@ -49,6 +49,7 @@ namespace FunticoGamesSDK
 			SetupCampaignProvider();
 			SetupInventoryProvider();
 			SetupGhostProvider();
+			SetupCommunityGoalProvider();
 			HTTPClient.Setup(publicGameKey, privateGameKey, _sessionId, _authDataProvider, errorHandler);
 			await WarmupServices();
 		}

@@ -132,6 +132,15 @@ namespace FunticoGamesSDK
 
         #endregion
 
+        #region CommunityGoal
+
+        public static string Get_Community_Goal => API + "/CommunityGoal";
+        public static string Get_Community_Goal_By_Id => API + "/CommunityGoal/goal";
+        public static string Post_Community_Goal_Attempt_Start => API + "/CommunityGoal/attempt/start";
+        public static string Post_Community_Goal_Attempt_Complete => API + "/CommunityGoal/attempt/complete";
+
+        #endregion
+
         #region Session
 
         #region Client
