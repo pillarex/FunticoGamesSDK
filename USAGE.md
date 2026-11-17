@@ -3311,11 +3311,13 @@ Every method calls the server (nothing is cached) and returns null on failure; `
 public UniTask<CommunityGoalResponse> GetCommunityGoal(string chainKey)
 public UniTask<CommunityGoalResponse> GetCommunityGoalById(Guid goalId)
 public UniTask<CommunityGoalLiveResponse> GetCommunityGoalLive(Guid goalId)
-public UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId)
+public UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null)
 public UniTask<CompleteGoalAttemptResponse> CompleteGoalAttempt(GoalAttemptDto attempt, long contribution,
-    double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null)
+    double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null,
+    string strikeData = null)
 public UniTask<CommunityGoalLeaderboardResponse> GetCommunityGoalLeaderboard(Guid goalId, int page = 1, int limit = 20)
 public UniTask<CommunityGoalHistoryResponse> GetCommunityGoalHistory(string chainKey, int page = 1, int limit = 10)
+public UniTask<CommunityGoalStrikeDto> GetCommunityGoalStrike(Guid goalId, Guid strikeId)
 public CommunityGoalWatch WatchCommunityGoal(Guid goalId, Action<CommunityGoalLiveResponse> onChange,
     Action<CommunityGoalErrorResponse> onError = null, int minIntervalSeconds = 2, bool pollInBackground = false)
 public CommunityGoalErrorResponse GetLastCommunityGoalError()
@@ -3341,9 +3343,11 @@ public CommunityGoalErrorResponse GetLastCommunityGoalError()
 - `MilestonesPassed` (List\<double\>) - The chain's milestones the goal has passed
 - `OpenedAt` (DateTime) / `ClosedAt` (DateTime?) - UTC
 - `ContributorCount` (int)
+- `StrikeCount` (int) - Completed strikes on this goal, every player's
+- `ClosedBy` (CommunityGoalClosedByDto) - Who landed the hit that reached the target: `Name`, `AvatarUrl`, `Accepted` (what that hit counted), `IsMe`; null while open or when the goal was closed by hand
 - `PayloadJson` (string) - The game's own data for this goal (e.g. which boss to show), exactly as it was configured; may be null
 - `NextGoalId` (Guid?) - For a closed goal: the goal opened after it, if any
-- `Rewards` (List\<CommunityGoalBracketDto\>) - The reward brackets, top-down: `Name` (the key `Me.Bracket` names), `Label` (what to show, e.g. `"#1"` or `"TOP 10%"`; may be null), exactly one of `MaxPlace` (int?, final places 1..MaxPlace), `MaxPercentile` (double?, final place x 100 / contributors at most this) or `AnyContribution` (bool, everyone who contributed), and `Display` (what the bracket pays, as configured for display: `Name`, `ImageUrl`, `Amount`). The actual items are drawn when the goal settles
+- `Rewards` (List\<CommunityGoalBracketDto\>) - The reward brackets, top-down: `Name` (the key `Me.Bracket` names), `Label` (what to show, e.g. `"#1"` or `"TOP 10%"`; may be null), exactly one of `MaxPlace` (int?, final places 1..MaxPlace), `MaxPercentile` (double?, final place x 100 / contributors at most this) or `AnyContribution` (bool, everyone who contributed), and `Display` (what the bracket pays, as configured for display: `Name`, `Code` (your game's own key for the entry, such as an item key or a key for a random pool; recognise entries by it, not by `Name`), `ImageUrl`, `Amount`). The actual items are drawn when the goal settles
 
 **CommunityGoalMeDto Properties:**
 - `IsContributor` (bool), `Score` (long), `Place` (int?, null until the player contributes), `Contributed` (long), `Best` (long, the player's largest single accepted contribution: the "best strike"), `Attempts` (int, completed attempts on this goal)
@@ -3355,7 +3359,7 @@ public CommunityGoalErrorResponse GetLastCommunityGoalError()
 
 ### `GetCommunityGoalLive`
 
-The goal's shared state only (`GoalId`, `Number`, `Status`, `TargetValue`, `CurrentValue`, `Progress`, `MilestonesPassed`, `ContributorCount`, `NextGoalId`, `PollAfterSeconds`, `ServerTime`). It is cheap: poll it while the goal is on screen, waiting `PollAfterSeconds` between calls, and react to new `MilestonesPassed` entries or a `Status` change. `WatchCommunityGoal` does exactly that for you.
+The goal's shared state only (`GoalId`, `Number`, `Status`, `TargetValue`, `CurrentValue`, `Progress`, `MilestonesPassed`, `ContributorCount`, `StrikeCount`, `NextGoalId`, `PollAfterSeconds`, `ServerTime`). It is cheap: poll it while the goal is on screen, waiting `PollAfterSeconds` between calls, and react to new `MilestonesPassed` entries or a `Status` change. `WatchCommunityGoal` does exactly that for you.
 
 ### `WatchCommunityGoal`
 
@@ -3384,13 +3388,15 @@ void OnBossScreenClosed() => _watch?.Stop();
 Starts an attempt on an open goal and spends one of today's attempts.
 
 **StartGoalAttemptResponse Properties:**
-- `Attempt` (GoalAttemptDto) - `AttemptId`, `GoalId`, `Seed` (int, chosen by the server), `StartedAt`, `ExpiresAt` (UTC), `GoalValueAtStart` and `MilestonesAtStart` (the goal's value and passed milestones when the attempt started: the phase to play in). All of them are the same every time the attempt is resumed
+- `Attempt` (GoalAttemptDto) - `AttemptId`, `GoalId`, `Seed` (int, chosen by the server), `StartedAt`, `ExpiresAt` (UTC), `GoalValueAtStart`, `MilestonesAtStart` (the goal's value and passed milestones when the attempt started: the phase to play in) and `StartData` (what you passed as `startData`, unchanged; null if none). All of them are the same every time the attempt is resumed
 - `Resumed` (bool) - `true` when this is the player's already-live attempt returned again; nothing was spent
 - `Goal` (CommunityGoalDto) - The goal of the attempt with its `PayloadJson` and its current state. On a resumed attempt the goal may have passed more milestones since the start: play in the phase of `Attempt.MilestonesAtStart`
 - `AttemptsLeftToday` (int?) / `ResetsAt` (DateTime)
 
 **Description:**
 A player has at most one live attempt per chain. Calling `StartGoalAttempt` while one is live returns **that attempt again** (`Resumed` = `true`), so after a reload or a crash the game can simply call it again and continue. The live attempt may belong to another goal of the chain: check `Attempt.GoalId`. `GoalClosed` and `NoAttemptsLeft` are normal outcomes (see `GetLastCommunityGoalError`).
+
+`startData` (optional, up to 8 KB in UTF-8) is your own data for the attempt, for example the build it starts with. It is kept with a new attempt and comes back in `Attempt.StartData` on every resume and in `Me.OpenAttempt`, so an unfinished strike can be continued with the same build on another device. When the live attempt is returned again, a new `startData` is ignored: the first one stays. Too long: `DataTooLarge`, nothing spent.
 
 ### `CompleteGoalAttempt`
 
@@ -3402,6 +3408,7 @@ Completes an attempt with its contribution.
 - `clientDurationSeconds` - Optional: the game's own measure of the attempt; informative only, the server times attempts itself
 - `metrics` - Optional: numbers for analytics, up to 16 keys are kept
 - `fightHash` - Optional: your hash of the attempt (e.g. of its seed and inputs) for a later check; up to 128 characters are kept
+- `strikeData` - Optional, up to 16 KB in UTF-8: your own data of the strike (e.g. the build and what a replay needs), sent signed with the result. The one of each player's best strike is kept and can be read back with `GetCommunityGoalStrike`. Too long: `DataTooLarge`, nothing counted and the attempt stays open, so send it again without it
 
 **CompleteGoalAttemptResponse Properties:**
 - `Reported` / `Accepted` (long) / `Capped` (bool) - `Accepted` is what counted; it is less than `Reported` (`Capped` = `true`) when the contribution exceeded the chain's plausibility limits
@@ -3422,7 +3429,7 @@ The goal's contributors ranked by score.
 
 **Parameters:** `goalId`; `page` (from 1); `limit` (entries per page, 1-100)
 
-**Returns:** `CommunityGoalLeaderboardResponse` - `GoalId`, `Items`, `Me` (the player's own row wherever it is; null until the player contributes or when nobody is signed in), `Around` (up to two rows above and below the player, the player included), `Total`, `Page`, `Limit`, `HasMore`. Each `CommunityGoalLeaderboardEntryDto` has `Place`, `Name`, `AvatarUrl`, `Score`, `Contributed`, `Best` (best strike), `Attempts` and `IsMe`.
+**Returns:** `CommunityGoalLeaderboardResponse` - `GoalId`, `Items`, `Me` (the player's own row wherever it is; null until the player contributes or when nobody is signed in), `Around` (up to two rows above and below the player, the player included), `Total`, `Page`, `Limit`, `HasMore`. Each `CommunityGoalLeaderboardEntryDto` has `Place`, `Name`, `AvatarUrl`, `Score`, `Contributed`, `Best` (best strike), `BestStrikeId` (Guid?, that strike for `GetCommunityGoalStrike`; null when there is none to show), `Attempts` and `IsMe`.
 
 ### `GetCommunityGoalHistory`
 
@@ -3430,7 +3437,7 @@ The chain's past goals (closed or settled), newest first, with the signed-in pla
 
 **Parameters:** `chainKey`; `page` (from 1); `limit` (entries per page, 1-20)
 
-**Returns:** `CommunityGoalHistoryResponse` - `Items`, `Total`, `Page`, `Limit`, `HasMore`. Each `CommunityGoalHistoryEntryDto` has `GoalId`, `Number`, `Name`, `Status`, `TargetValue`, `CurrentValue`, `OpenedAt`, `ClosedAt`, `LifetimeSeconds` (how long the goal held out), `ContributorCount`, `PayloadJson` and `Me` (null when nobody is signed in): `IsContributor`, `Score`, `Contributed`, `Best`, `Attempts`, `Share` (`Contributed` / the goal's `CurrentValue`, 0..1), `FinalPlace`, `Bracket` and `RewardStatus`.
+**Returns:** `CommunityGoalHistoryResponse` - `Items`, `Total`, `Page`, `Limit`, `HasMore`. Each `CommunityGoalHistoryEntryDto` has `GoalId`, `Number`, `Name`, `Status`, `TargetValue`, `CurrentValue`, `OpenedAt`, `ClosedAt`, `LifetimeSeconds` (how long the goal held out), `ContributorCount`, `StrikeCount`, `ClosedBy` (who landed the last hit; null when closed by hand), `PayloadJson` and `Me` (null when nobody is signed in): `IsContributor`, `Score`, `Contributed`, `Best`, `Attempts`, `Share` (`Contributed` / the goal's `CurrentValue`, 0..1), `FinalPlace`, `Bracket` and `RewardStatus`.
 
 ```csharp
 // "Boss down" for the goal that just closed: how long it held, the player's share.
@@ -3443,6 +3450,12 @@ CommunityGoalHistoryResponse history = await FunticoSDK.Instance.GetCommunityGoa
 foreach (var past in history?.Items ?? new List<CommunityGoalHistoryEntryDto>())
     AddPastBoss(past.Name, past.LifetimeSeconds, past.Me?.FinalPlace, past.Me?.RewardStatus);
 ```
+
+### `GetCommunityGoalStrike`
+
+A player's best strike on a goal, by the `BestStrikeId` of their leaderboard row, with the `strikeData` sent with it: for example to show their ship, copy the build or replay the strike. Works before sign-in.
+
+**Returns:** `CommunityGoalStrikeDto` - `StrikeId`, `GoalId`, `Name`, `AvatarUrl`, `Accepted` (what the strike counted), `CompletedAt` (UTC), `StrikeData` (exactly as sent; null when none was sent) and `IsMe`. Null on failure; `StrikeNotFound` means it is no longer that player's best (they struck harder since, or were removed): reload the leaderboard.
 
 ### `GetLastCommunityGoalError`
 
@@ -3458,6 +3471,8 @@ foreach (var past in history?.Items ?? new List<CommunityGoalHistoryEntryDto>())
 - `CompletionTooFast` - Completed sooner than `MinAttemptSeconds`; the attempt is used, with no contribution
 - `InvalidSignature` - The completion could not be verified (check the private key passed to `Initialize`)
 - `InvalidContribution` - The contribution is not a whole number of 0 or more
+- `DataTooLarge` - `startData` (8 KB) or `strikeData` (16 KB) is too long in UTF-8. Nothing was spent or counted; the attempt stays open
+- `StrikeNotFound` - No such best strike on this goal any more. Reload the leaderboard
 - `Unauthorized` - Set by the SDK: the player is not authenticated. Call `Authentication` first
 - `RequestFailed` - Set by the SDK: no connection, timeout, or an unexpected response. `Message` has the details
 

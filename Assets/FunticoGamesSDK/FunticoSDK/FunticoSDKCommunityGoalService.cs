@@ -24,12 +24,16 @@ namespace FunticoGamesSDK
 		public UniTask<CommunityGoalLiveResponse> GetCommunityGoalLive(Guid goalId) =>
 			_communityGoalProvider.GetCommunityGoalLive(goalId);
 
-		public UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId) =>
-			_communityGoalProvider.StartGoalAttempt(goalId);
+		public UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null) =>
+			_communityGoalProvider.StartGoalAttempt(goalId, startData);
 
 		public UniTask<CompleteGoalAttemptResponse> CompleteGoalAttempt(GoalAttemptDto attempt, long contribution,
-			double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null) =>
-			_communityGoalProvider.CompleteGoalAttempt(attempt, contribution, clientDurationSeconds, metrics, fightHash);
+			double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null,
+			string strikeData = null) =>
+			_communityGoalProvider.CompleteGoalAttempt(attempt, contribution, clientDurationSeconds, metrics, fightHash, strikeData);
+
+		public UniTask<CommunityGoalStrikeDto> GetCommunityGoalStrike(Guid goalId, Guid strikeId) =>
+			_communityGoalProvider.GetCommunityGoalStrike(goalId, strikeId);
 
 		public UniTask<CommunityGoalLeaderboardResponse> GetCommunityGoalLeaderboard(Guid goalId, int page = 1, int limit = 20) =>
 			_communityGoalProvider.GetCommunityGoalLeaderboard(goalId, page, limit);

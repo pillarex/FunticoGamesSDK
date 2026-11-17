@@ -40,7 +40,13 @@ namespace FunticoGamesSDK.CommunityGoalProviders
         /// <c>GoalClosed</c> (see <see cref="CommunityGoalErrorResponse.NextGoalId"/>) and
         /// <c>NoAttemptsLeft</c> (see <see cref="CommunityGoalErrorResponse.ResetsAt"/>) are normal outcomes.
         /// </summary>
-        UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId);
+        /// <param name="goalId">The goal to strike.</param>
+        /// <param name="startData">
+        /// Optional: the game's own data for the attempt (e.g. the build it starts with), up to 8 KB in UTF-8. Stored
+        /// as is and returned in <c>Attempt.StartData</c>, also on every resume (another device can continue the
+        /// attempt with it). Ignored when the live attempt is returned again: the first one sent stays.
+        /// </param>
+        UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null);
 
         /// <summary>
         /// Completes an attempt with its contribution, encrypted and signed with the game's private key.
@@ -53,8 +59,21 @@ namespace FunticoGamesSDK.CommunityGoalProviders
         /// <param name="clientDurationSeconds">Optional: the game's own measure of the attempt; informative only.</param>
         /// <param name="metrics">Optional: numbers for analytics (up to 16 keys are kept).</param>
         /// <param name="fightHash">Optional: the game's hash of the attempt for a later check (up to 128 characters are kept).</param>
+        /// <param name="strikeData">
+        /// Optional: the game's own data of the strike (e.g. the build and what a replay needs), up to 16 KB in UTF-8,
+        /// sent signed with the result. The one of each player's best strike is kept and can be read back with
+        /// GetCommunityGoalStrike. Too long: <c>DataTooLarge</c>, nothing counted, the attempt stays open.
+        /// </param>
         UniTask<CompleteGoalAttemptResponse> CompleteGoalAttempt(GoalAttemptDto attempt, long contribution,
-            double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null);
+            double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null,
+            string strikeData = null);
+
+        /// <summary>
+        /// Fetches a player's best strike on a goal by the <c>BestStrikeId</c> of their leaderboard row, with the
+        /// strikeData sent with it (e.g. to copy the build or replay the strike). Works before sign-in. Returns null
+        /// on failure; <c>StrikeNotFound</c> means it is no longer that player's best (reload the leaderboard).
+        /// </summary>
+        UniTask<CommunityGoalStrikeDto> GetCommunityGoalStrike(Guid goalId, Guid strikeId);
 
         /// <summary>
         /// Fetches the goal's contributors ranked by score, plus the player's own row and the rows

@@ -47,10 +47,11 @@ namespace FunticoGamesSDK.CommunityGoalProviders
             return response;
         }
 
-        public async UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId)
+        public async UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null)
         {
             var url = APIConstants.WithQuery(APIConstants.Post_Community_Goal_Attempt_Start, "goalId=" + Id(goalId));
-            var response = await Post<StartGoalAttemptResponse>(url, null, "attempt start");
+            var body = string.IsNullOrEmpty(startData) ? null : new StartGoalAttemptRequest { StartData = startData };
+            var response = await Post<StartGoalAttemptResponse>(url, body, "attempt start");
             if (response == null)
                 return null;
 
@@ -64,7 +65,8 @@ namespace FunticoGamesSDK.CommunityGoalProviders
         }
 
         public async UniTask<CompleteGoalAttemptResponse> CompleteGoalAttempt(GoalAttemptDto attempt, long contribution,
-            double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null)
+            double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null,
+            string strikeData = null)
         {
             if (attempt == null || attempt.AttemptId == Guid.Empty || attempt.GoalId == Guid.Empty)
                 return Fail<CompleteGoalAttemptResponse>(CommunityGoalErrorCodes.AttemptNotFound,
@@ -86,7 +88,8 @@ namespace FunticoGamesSDK.CommunityGoalProviders
                 Contribution = contribution,
                 ClientDurationSeconds = clientDurationSeconds,
                 Metrics = metrics != null ? new Dictionary<string, double>(metrics) : null,
-                FightHash = fightHash
+                FightHash = fightHash,
+                StrikeData = string.IsNullOrEmpty(strikeData) ? null : strikeData
             };
 
             var signed = await PayloadSigning.Sign(_signer, PayloadKind.CommunityGoal, Id(attempt.AttemptId), payload);
@@ -120,6 +123,9 @@ namespace FunticoGamesSDK.CommunityGoalProviders
             response.Around.RemoveAll(entry => entry == null);
             return response;
         }
+
+        public UniTask<CommunityGoalStrikeDto> GetCommunityGoalStrike(Guid goalId, Guid strikeId) =>
+            Get<CommunityGoalStrikeDto>(GoalUrl(goalId) + "/strike/" + Id(strikeId), "strike");
 
         public async UniTask<CommunityGoalHistoryResponse> GetCommunityGoalHistory(string chainKey, int page = 1, int limit = 10)
         {
@@ -377,6 +383,7 @@ namespace FunticoGamesSDK.CommunityGoalProviders
             public double? ClientDurationSeconds { get; set; }
             public Dictionary<string, double> Metrics { get; set; }
             public string FightHash { get; set; }
+            public string StrikeData { get; set; }
         }
 
         #endregion

@@ -82,11 +82,30 @@ namespace FunticoGamesSDK.APIModels
         /// <summary>When this goal is closed: the goal opened after it, if any.</summary>
         public Guid? NextGoalId { get; set; }
 
+        /// <summary>Completed strikes on this goal, every player's.</summary>
+        public int StrikeCount { get; set; }
+
+        /// <summary>Who landed the hit that reached the target; null while open, or when the goal was closed by hand.</summary>
+        public CommunityGoalClosedByDto ClosedBy { get; set; }
+
         /// <summary>
         /// The goal's reward brackets, top-down: at settlement each contributor gets the first bracket
         /// their final place matches, and only that one.
         /// </summary>
         public List<CommunityGoalBracketDto> Rewards { get; set; } = new List<CommunityGoalBracketDto>();
+    }
+
+    /// <summary>Who landed the hit that reached a goal's target.</summary>
+    public class CommunityGoalClosedByDto
+    {
+        public string Name { get; set; }
+        public string AvatarUrl { get; set; }
+
+        /// <summary>What that hit counted.</summary>
+        public long Accepted { get; set; }
+
+        /// <summary>The signed-in player landed it.</summary>
+        public bool IsMe { get; set; }
     }
 
     /// <summary>One reward bracket of a goal: who falls into it and what it pays, as configured for display.</summary>
@@ -114,6 +133,13 @@ namespace FunticoGamesSDK.APIModels
     public class CommunityGoalRewardDisplayDto
     {
         public string Name { get; set; }
+
+        /// <summary>
+        /// The game's own key for the entry (an item key, or a key for a random pool), as configured; may be
+        /// null. Recognise entries by this, not by Name.
+        /// </summary>
+        public string Code { get; set; }
+
         public string ImageUrl { get; set; }
         public int? Amount { get; set; }
     }
@@ -187,6 +213,15 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>Milestones the goal had passed when the attempt started: the phase to play the attempt in.</summary>
         public List<double> MilestonesAtStart { get; set; } = new List<double>();
+
+        /// <summary>What the game sent as startData when the attempt started, unchanged; the same on every resume. Null if none.</summary>
+        public string StartData { get; set; }
+    }
+
+    /// <summary>Body of StartGoalAttempt when the game sends startData. Built by the SDK.</summary>
+    public class StartGoalAttemptRequest
+    {
+        public string StartData { get; set; }
     }
 
     /// <summary>Response of GetCommunityGoalLive: the shared state only, for polling.</summary>
@@ -203,6 +238,9 @@ namespace FunticoGamesSDK.APIModels
         public double Progress { get; set; }
         public List<double> MilestonesPassed { get; set; } = new List<double>();
         public int ContributorCount { get; set; }
+
+        /// <summary>Completed strikes on this goal, every player's.</summary>
+        public int StrikeCount { get; set; }
 
         /// <summary>When the goal is closed: the goal opened after it, if any.</summary>
         public Guid? NextGoalId { get; set; }
@@ -326,7 +364,29 @@ namespace FunticoGamesSDK.APIModels
         /// <summary>The player's largest single accepted contribution to this goal.</summary>
         public long Best { get; set; }
 
+        /// <summary>That best strike, for GetCommunityGoalStrike; null when there is none to show.</summary>
+        public Guid? BestStrikeId { get; set; }
+
         public int Attempts { get; set; }
+        public bool IsMe { get; set; }
+    }
+
+    /// <summary>Response of GetCommunityGoalStrike: a player's best strike on a goal, with the game's data of it.</summary>
+    public class CommunityGoalStrikeDto
+    {
+        public Guid StrikeId { get; set; }
+        public Guid GoalId { get; set; }
+        public string Name { get; set; }
+        public string AvatarUrl { get; set; }
+
+        /// <summary>What the strike counted.</summary>
+        public long Accepted { get; set; }
+
+        public DateTime CompletedAt { get; set; }
+
+        /// <summary>The strikeData sent with it, exactly; null when none was sent.</summary>
+        public string StrikeData { get; set; }
+
         public bool IsMe { get; set; }
     }
 
@@ -358,6 +418,12 @@ namespace FunticoGamesSDK.APIModels
         public long LifetimeSeconds { get; set; }
 
         public int ContributorCount { get; set; }
+
+        /// <summary>Completed strikes on this goal, every player's.</summary>
+        public int StrikeCount { get; set; }
+
+        /// <summary>Who landed the hit that reached the target; null when the goal was closed by hand.</summary>
+        public CommunityGoalClosedByDto ClosedBy { get; set; }
 
         /// <summary>The game's own data for this goal, exactly as it was configured.</summary>
         public string PayloadJson { get; set; }
@@ -455,6 +521,12 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>The contribution is not a whole number of zero or more.</summary>
         public const string InvalidContribution = "InvalidContribution";
+
+        /// <summary>startData (8 KB) or strikeData (16 KB) is too long in UTF-8; nothing was spent or counted, the attempt stays open.</summary>
+        public const string DataTooLarge = "DataTooLarge";
+
+        /// <summary>No such best strike on this goal any more (the player has struck harder since, or was removed).</summary>
+        public const string StrikeNotFound = "StrikeNotFound";
 
         /// <summary>
         /// (HTTP 401) The player is not authenticated. Set by the SDK; starting and completing
