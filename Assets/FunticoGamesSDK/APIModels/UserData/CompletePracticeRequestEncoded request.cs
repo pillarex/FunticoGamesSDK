@@ -13,6 +13,10 @@ namespace FunticoGamesSDK.APIModels.UserData
         /// <summary>What the run collected (RecordCollected_Client); omitted when nothing was.</summary>
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public Dictionary<string, int> Collected { get; set; }
+
+        /// <summary>The run's logged events (RecordEvent_Client), as room results carry them; omitted when none were.</summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public List<string> GameEvents { get; set; }
     }
 
     public class CompletePracticeRequestEncoded

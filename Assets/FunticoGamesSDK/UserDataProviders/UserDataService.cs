@@ -97,7 +97,9 @@ namespace FunticoGamesSDK.UserDataProviders
 
 		public UniTask<bool> CompletePractice(int score) => CompletePractice(score, null);
 
-		public async UniTask<bool> CompletePractice(int score, Dictionary<string, int> collected)
+		public UniTask<bool> CompletePractice(int score, Dictionary<string, int> collected) => CompletePractice(score, collected, null);
+
+		public async UniTask<bool> CompletePractice(int score, Dictionary<string, int> collected, List<string> gameEvents)
 		{
 			// The run id survives a failed submit, so retrying the same result cannot be counted twice;
 			// a successful submit starts the next run with a fresh one.
@@ -108,7 +110,8 @@ namespace FunticoGamesSDK.UserDataProviders
 			{
 				Score = score,
 				RunId = _practiceRunId,
-				Collected = collected != null && collected.Count > 0 ? collected : null
+				Collected = collected != null && collected.Count > 0 ? collected : null,
+				GameEvents = gameEvents != null && gameEvents.Count > 0 ? new List<string>(gameEvents) : null
 			};
 
 			var userId = userData.UserId.ToString(CultureInfo.InvariantCulture);

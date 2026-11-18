@@ -496,6 +496,8 @@ Sends the practice game result to the server. The SDK automatically handles encr
 
 Whatever the run recorded with `RecordCollected_Client` goes with the result, so practice can pay run rewards too, for the keys your game has opened for practice. The counts are cleared once the result is accepted. Each practice run carries an id the SDK makes for it: retrying a failed `CompletePractice` resends the same run, so it is never counted twice.
 
+Events recorded with `RecordEvent_Client` go with the result in the same way, as a room result carries them, and are cleared once the result is accepted. A failed submit keeps them, so a retry sends them again. When a practice run is abandoned without a result, call `ClearSessionEvents_Client` so its events do not travel with the next run.
+
 **Usage:**
 ```csharp
 // After practice game ends
@@ -1909,7 +1911,7 @@ public void ClearSessionEvents_Client()
 ```
 
 **Description:**
-Empties the list of events recorded via `RecordEvent_Client` without touching the session lifecycle. The Campaign module calls this automatically after a successful `CompleteCampaignLevel` (the events were delivered in that submission). You normally don't need to call it manually — sessions closed via `FinishRoomSession_Client` clear the log as part of closing.
+Empties the list of events recorded via `RecordEvent_Client` without touching the session lifecycle. The Campaign module calls this automatically after a successful `CompleteCampaignLevel`, and `CompletePractice` after a successful practice result (the events were delivered in that submission). You normally don't need to call it manually — sessions closed via `FinishRoomSession_Client` clear the log as part of closing.
 
 **Usage:**
 ```csharp

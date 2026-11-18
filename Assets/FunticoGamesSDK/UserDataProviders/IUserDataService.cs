@@ -19,5 +19,8 @@ namespace FunticoGamesSDK.UserDataProviders
 
 		/// <summary>Submits a practice result together with what the run collected.</summary>
 		UniTask<bool> CompletePractice(int score, Dictionary<string, int> collected);
+
+		/// <summary>Submits a practice result together with what the run collected and the events it logged.</summary>
+		UniTask<bool> CompletePractice(int score, Dictionary<string, int> collected, List<string> gameEvents);
 	}
 }
