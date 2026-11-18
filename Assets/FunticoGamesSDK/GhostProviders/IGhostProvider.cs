@@ -67,7 +67,12 @@ namespace FunticoGamesSDK.GhostProviders
         /// <param name="matchId"><c>GhostMatch.MatchId</c> of the issued match.</param>
         /// <param name="outcome">The outcome from the player's point of view.</param>
         /// <param name="fightHash">Optional: the game's hash of the fight (up to 128 characters are kept).</param>
-        UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null);
+        /// <param name="matchData">
+        /// Optional: your evidence for a later check of this fight, in your own format (e.g. your run's log up to and
+        /// including this fight). Signed with the report. At most 32 KB in UTF-8; a larger one fails with
+        /// <c>DataTooLarge</c> and nothing is recorded, so report again without it.
+        /// </param>
+        UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null, string matchData = null);
 
         /// <summary>
         /// Fetches what the player's ghosts did in the pool. The <c>New*</c> counts are the fights

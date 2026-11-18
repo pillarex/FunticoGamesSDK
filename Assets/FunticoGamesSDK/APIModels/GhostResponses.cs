@@ -385,6 +385,9 @@ namespace FunticoGamesSDK.APIModels
         /// <summary>The outcome is not Win, Loss or Draw.</summary>
         public const string InvalidOutcome = "InvalidOutcome";
 
+        /// <summary>The report's match data is over 32 KB. Nothing was recorded; report again without it.</summary>
+        public const string DataTooLarge = "DataTooLarge";
+
         /// <summary>
         /// (HTTP 401) The player is not authenticated. Set by the SDK; call <c>Authentication</c> first.
         /// </summary>

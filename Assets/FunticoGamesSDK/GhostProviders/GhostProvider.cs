@@ -86,7 +86,8 @@ namespace FunticoGamesSDK.GhostProviders
             return Post<GhostUploadResponse>(APIConstants.Post_Ghost_Upload, request, "upload");
         }
 
-        public async UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null)
+        public async UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null,
+            string matchData = null)
         {
             if (!Enum.IsDefined(typeof(GhostOutcome), outcome))
                 return Fail<GhostReportResponse>(GhostErrorCodes.InvalidOutcome,
@@ -101,7 +102,8 @@ namespace FunticoGamesSDK.GhostProviders
             {
                 MatchId = matchId,
                 Outcome = outcome.ToString(),
-                FightHash = fightHash
+                FightHash = fightHash,
+                MatchData = string.IsNullOrEmpty(matchData) ? null : matchData
             };
 
             var signed = await PayloadSigning.Sign(_signer, PayloadKind.Ghost, matchId.ToString(), payload);
@@ -292,6 +294,9 @@ namespace FunticoGamesSDK.GhostProviders
             public Guid MatchId { get; set; }
             public string Outcome { get; set; }
             public string FightHash { get; set; }
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string MatchData { get; set; }
         }
 
         #endregion

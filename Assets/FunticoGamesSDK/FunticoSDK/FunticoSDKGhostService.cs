@@ -31,8 +31,9 @@ namespace FunticoGamesSDK
 			string snapshotJson) =>
 			_ghostProvider.UploadGhostSnapshot(pool, attributes, snapshotJson);
 
-		public UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null) =>
-			_ghostProvider.ReportGhostResult(matchId, outcome, fightHash);
+		public UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null,
+			string matchData = null) =>
+			_ghostProvider.ReportGhostResult(matchId, outcome, fightHash, matchData);
 
 		public UniTask<GhostReportSummaryResponse> GetGhostReportSummary(string pool) =>
 			_ghostProvider.GetGhostReportSummary(pool);

@@ -3067,13 +3067,14 @@ Reports the fight of a match.
 
 **Signature:**
 ```csharp
-public UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null)
+public UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome outcome, string fightHash = null, string matchData = null)
 ```
 
 **Parameters:**
 - `matchId` - `GhostMatch.MatchId`
 - `outcome` - `GhostOutcome.Win`, `GhostOutcome.Loss` or `GhostOutcome.Draw`, from the player's point of view
 - `fightHash` - Optional: your hash of the fight (e.g. of its seed and inputs), kept with the match so the fight can be checked later. Up to 128 characters are kept
+- `matchData` - Optional: your evidence for a later check of this fight, in your own format (for example your run's log up to and including this fight). It is signed together with the report and kept with the match. At most 32 KB in UTF-8: a larger one fails with `DataTooLarge` and nothing is recorded, so report again without it
 
 **Returns:** `UniTask<GhostReportResponse>` - The result, or null on failure
 
