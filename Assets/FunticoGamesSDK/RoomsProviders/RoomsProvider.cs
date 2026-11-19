@@ -76,6 +76,49 @@ namespace FunticoGamesSDK.RoomsProviders
 			return roomData;
 		}
 
+		public async UniTask<RoomData> JoinExternalMatch(string eventId, string matchId, string password = null,
+			bool useVoucher = false)
+		{
+			if (!Guid.TryParse(eventId, out var eventGuid) || !Guid.TryParse(matchId, out var matchGuid))
+			{
+				Logger.LogError("JoinExternalMatch: eventId and matchId must be GUIDs");
+				return null;
+			}
+
+			var match = matchGuid.ToString();
+			var encryptedPassword = string.IsNullOrEmpty(password)
+				? null
+				: AESNonDynamic.Encrypt(password, eventGuid.ToString());
+
+			var joinResponse = await JoinSinglePlayerRoom(eventGuid.ToString(), null, encryptedPassword, useVoucher,
+				getLobbyQuote: false);
+			if (joinResponse == null)
+				return null;
+
+			// The player already has a game in this room: the same match is a rejoin, any other one has to be
+			// finished first (for example by the server with a null score).
+			var existing = joinResponse.game_session_id_or_match_id;
+			if (!string.IsNullOrWhiteSpace(existing))
+			{
+				if (string.Equals(existing, match, StringComparison.OrdinalIgnoreCase))
+					return new RoomData { EventId = eventId, SessionOrMatchId = match };
+
+				Logger.LogError(
+					$"JoinExternalMatch: the player has an unfinished game {existing} in this room. Finish it before joining another match.");
+				return null;
+			}
+
+			var enterResponse = await EnterSinglePlayerRoom(eventGuid.ToString(), matchGuid, isLobby: false);
+			if (enterResponse == null)
+				return null;
+
+			return new RoomData
+			{
+				EventId = eventId,
+				SessionOrMatchId = string.IsNullOrWhiteSpace(enterResponse.id) ? match : enterResponse.id
+			};
+		}
+
 		public async UniTask<List<TierViewModel>> GetTiers()
 		{
 			var tiers = await GetTiersFromAPI();
@@ -166,7 +209,7 @@ namespace FunticoGamesSDK.RoomsProviders
 				GameEvents = _serverSessionManager.GetCurrentSessionEvents_Server(funticoUserId),
 				GameManagedAward = gameManagedAward
 			};
-			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match, $"eventId={eventId}",
+			var url = APIConstants.WithQuery(APIConstants.Post_Score_Match_Server, $"eventId={eventId}",
 				$"gameSessionIrOrMatchId={sessionId}");
 			var success = await HTTPClient.Post_Short(url, gameData);
 			_serverSessionManager.CloseCurrentSession_Server().Forget();
@@ -255,10 +298,10 @@ namespace FunticoGamesSDK.RoomsProviders
 		}
 
 		private async UniTask<APIModels.JoinRoomResponse> JoinSinglePlayerRoom(string roomId, string communityID,
-			string password, bool useVoucher)
+			string password, bool useVoucher, bool getLobbyQuote = true)
 		{
 			var link = APIConstants.WithQuery(APIConstants.Post_Join_Room, $"idempotencyKey={Guid.NewGuid()}",
-				$"getLobbyQuote=true");
+				getLobbyQuote ? "getLobbyQuote=true" : "getLobbyQuote=false");
 			(bool ok, var response) = await HTTPClient.Post<APIModels.JoinRoomResponse>(link,
 				JsonBody.Of(
 					("tournamentId", roomId),
@@ -276,10 +319,10 @@ namespace FunticoGamesSDK.RoomsProviders
 			return response;
 		}
 
-		private async UniTask<EnterRoomResponse> EnterSinglePlayerRoom(string roomId, Guid sessionId)
+		private async UniTask<EnterRoomResponse> EnterSinglePlayerRoom(string roomId, Guid sessionId, bool isLobby = true)
 		{
 			var link = APIConstants.WithQuery(APIConstants.Post_Room_Started, $"eventId={roomId}",
-				$"sessionOrMatchId={sessionId.ToString()}", "isLobby=true");
+				$"sessionOrMatchId={sessionId.ToString()}", isLobby ? "isLobby=true" : "isLobby=false");
 			(bool ok, var response) = await HTTPClient.Post<EnterRoomResponse>(link, null);
 
 			if (!ok)

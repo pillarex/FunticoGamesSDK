@@ -35,6 +35,25 @@ namespace FunticoGamesSDK
 
 		public UniTask<RoomData> JoinRoom(string roomGuid) => _roomsProvider.JoinRoom(roomGuid);
 
+		/// <summary>
+		/// Registers this player in a match of an external (PvP) room that your own matchmaking formed.
+		/// Every player of the match calls it with the same matchId: a GUID your game server makes once
+		/// per match. The room's entry fee, if any, is charged here.
+		/// When the match is over, report every player's score under the same matchId with
+		/// FinishRoomSession_Server (a null score means the player left). Prizes are paid by place once
+		/// every player of the match has a score.
+		/// Calling it again for the same match returns the same match. If the player still has an
+		/// unfinished game in this room under another id, this returns null: finish that game first.
+		/// </summary>
+		/// <param name="eventId">The room's id.</param>
+		/// <param name="matchId">The match's GUID, the same for all of its players.</param>
+		/// <param name="password">The room's password, for a room that has one.</param>
+		/// <param name="useVoucher">Spend a free-entry voucher instead of the entry fee.</param>
+		/// <returns>The room data to report under (SessionOrMatchId is the match id), or null on failure.</returns>
+		public UniTask<RoomData> JoinExternalMatch(string eventId, string matchId, string password = null,
+			bool useVoucher = false) =>
+			_roomsProvider.JoinExternalMatch(eventId, matchId, password, useVoucher);
+
 		public UniTask<PrizePoolDistibutionViewModel> GetPrizePoolDistribution(string roomGuid) =>
 			_roomsProvider.GetPrizePoolDistribution(roomGuid);
 
