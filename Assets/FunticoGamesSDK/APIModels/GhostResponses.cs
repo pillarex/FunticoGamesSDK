@@ -115,6 +115,13 @@ namespace FunticoGamesSDK.APIModels
         /// <summary>The run's entry payment in a paid pool; null in a free pool.</summary>
         public GhostRunEntry Entry { get; set; }
 
+        /// <summary>
+        /// What the run paid (rewards carried by beaten opponents and the run's reward steps), each with its delivery
+        /// status. Filled once the run has ended: in the report that ended it and in the abandon response; empty before
+        /// that. GetRecentRewards lists the same entries with Source "Arena".
+        /// </summary>
+        public List<RecentReward> Rewards { get; set; } = new List<RecentReward>();
+
         /// <summary>The typed <see cref="Status"/>, or null if the value is not one this SDK knows.</summary>
         public GhostRunStatus? GetStatus() => GhostWireEnums.Parse<GhostRunStatus>(Status);
     }
@@ -215,6 +222,19 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>Report the fight before this time (UTC); after it the match expires.</summary>
         public DateTime ExpiresAt { get; set; }
+
+        /// <summary>
+        /// What this opponent carries, decided when the opponent was issued (the same on every resume); null when it
+        /// carries nothing. Winning this fight pays it; a loss, a draw counted as a loss or an expiry does not.
+        /// </summary>
+        public GhostCarry Carry { get; set; }
+    }
+
+    /// <summary>A reward an opponent carries: winning that fight pays it.</summary>
+    public class GhostCarry
+    {
+        /// <summary>What it is, as the pool's rules name it (e.g. "chest_rare"): show the matching art.</summary>
+        public string Code { get; set; }
     }
 
     /// <summary>Response of POST /Ghost/find.</summary>
@@ -275,8 +295,11 @@ namespace FunticoGamesSDK.APIModels
         public int OpponentRatingBefore { get; set; }
         public int OpponentRatingAfter { get; set; }
 
-        /// <summary>The run after the fight; null in pools without runs.</summary>
+        /// <summary>The run after the fight; null in pools without runs. When this fight ended the run, Run.Rewards lists what it paid.</summary>
         public GhostRun Run { get; set; }
+
+        /// <summary>What this fight won: the opponent's Carry when the fight counted as a win; null otherwise (the same on a repeated report).</summary>
+        public GhostCarry CarryWon { get; set; }
 
         /// <summary>The typed <see cref="Outcome"/>, or null if the value is not one this SDK knows.</summary>
         public GhostOutcome? GetOutcome() => GhostWireEnums.Parse<GhostOutcome>(Outcome);

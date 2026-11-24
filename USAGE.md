@@ -2957,6 +2957,8 @@ public UniTask<RecentRewardsResponse> GetRecentRewards(int limit = 20, DateTime?
 - `Status` (string) - See `RecentRewardStatus`: `Queued` (on its way), `Delivered`, `Empty` (a random draw that paid nothing), `Refused`, `Failed`
 - `Items` (List<RecentRewardItem>) - `ItemId`, `GameItemId`, `Name`, `ImageUrl`, `Amount`. Empty for an `Empty` draw
 - `CreatedAt` (DateTime) / `DeliveredAt` (DateTime?) - UTC
+- `Delayed` (bool) - `true` for a `Queued` reward that was asked to be sent later (a daily limit or a pause between rewards): it is still on its way and is sent again by itself. `false` while it is simply being sent
+- `RetryAt` (DateTime?) - For a `Queued` reward: when the next delivery try is due (UTC); null when none is scheduled
 
 **Description:**
 Rewards are paid by the server after the result is accepted; a reward that could not reach the platform yet stays `Queued` and is delivered later, at the latest on the player's next login. The list never shows a result the platform has not accepted.
@@ -3087,6 +3089,7 @@ In pools without runs both are always null; call `FindGhostOpponent` again to ge
 - `MaxWins` / `MaxLosses` / `MaxRounds` (int?) - The pool's run limits
 - `StartedAt` (DateTime) / `FinishedAt` (DateTime?) - UTC timestamps
 - `Entry` (GhostRunEntry) - The run's entry payment in a paid pool; null in a free pool
+- `Rewards` (List\<RecentReward\>) - What the run paid (rewards carried by beaten opponents and the run's reward steps), each with its delivery status. Filled once the run has ended: in the report that ended it and in the abandon response; empty before that. `GetRecentRewards` lists the same entries with `Source` = `"Arena"`
 
 **GhostRunEntry Properties:**
 - `Status` (string) - `"Charged"` (paid), `"Pending"` (not confirmed yet), `"Refused"` (not paid), `"Refunded"` (paid back), `"RefundPending"` (being paid back); `GetStatus()` returns the typed `GhostEntryStatus?`
@@ -3212,9 +3215,12 @@ public UniTask<GhostFindResponse> FindGhostOpponent(string pool, Dictionary<stri
 - `OpponentAttributes` (Dictionary\<string, int\>) - The opponent ship's attribute values
 - `Step` (string) - Name of the search step that found the opponent (`"Fallback"` for a fallback bot)
 - `ExpiresAt` (DateTime) - Report the fight before this time (UTC)
+- `Carry` (GhostCarry) - What this opponent carries, `Code` such as `"chest_rare"`; null when it carries nothing
 
 **Description:**
 One match is open at a time: searching again before reporting returns **the same open match**, so a reload or a second search cannot replace an unwanted opponent. If the fight is not reported before `ExpiresAt`, the match expires; depending on the pool, an expired match may count as a loss. The SDK and the server never parse or rewrite the ship: deserialize `SnapshotJson` into your own type with `JsonConvert.DeserializeObject<T>`.
+
+**Carried rewards.** In a pool whose opponents may carry a reward (for example a chest), the server decides when it issues the opponent whether it carries one and which; `Match.Carry` tells you before the fight. It stays the same on every new search and on `GetGhostRun`'s `OpenMatch`. Winning that fight pays it (`GhostReportResponse.CarryWon`); a loss, a draw that counts as a loss, an expired match or an abandoned run does not.
 
 **Usage:**
 ```csharp
@@ -3294,7 +3300,8 @@ public UniTask<GhostReportResponse> ReportGhostResult(Guid matchId, GhostOutcome
 - `Outcome` (string) - `"Win"`, `"Loss"` or `"Draw"`; `GetOutcome()` returns the typed `GhostOutcome?`
 - `PlayerRatingBefore` / `PlayerRatingAfter` (int) - The player's rating change
 - `OpponentRatingBefore` / `OpponentRatingAfter` (int) - The opponent's rating change
-- `Run` (GhostRun) - The run after the fight (null in pools without runs). When a limit was reached, `Run.GetStatus()` is `GhostRunStatus.Finished`
+- `Run` (GhostRun) - The run after the fight (null in pools without runs). When a limit was reached, `Run.GetStatus()` is `GhostRunStatus.Finished` and `Run.Rewards` lists everything the run paid, each `Queued` (on its way; `Delayed` when asked to be sent later), `Delivered`, `Empty`, `Refused` or `Failed`
+- `CarryWon` (GhostCarry) - The opponent's carried reward when this fight counted as a win; null otherwise (the same on a repeated report)
 
 **Description:**
 The report is encrypted and signed with the game's private key (AES + HMAC, keyed on the match id), as in `CompleteCampaignLevel`. A match is reported **once**: reporting it again returns the first result, so after a network error just call `ReportGhostResult` again with the same arguments. A report after `ExpiresAt` fails with `MatchExpired`.

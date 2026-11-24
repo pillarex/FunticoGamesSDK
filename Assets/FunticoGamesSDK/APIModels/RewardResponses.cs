@@ -31,6 +31,15 @@ namespace FunticoGamesSDK.APIModels
 
         public DateTime CreatedAt { get; set; }
         public DateTime? DeliveredAt { get; set; }
+
+        /// <summary>
+        /// Queued, and it was asked to be sent later (a daily limit or a pause between rewards): still on its way and
+        /// sent again by itself. False while it is simply being sent.
+        /// </summary>
+        public bool Delayed { get; set; }
+
+        /// <summary>For a Queued reward: when the next delivery try is due (UTC); null when none is scheduled.</summary>
+        public DateTime? RetryAt { get; set; }
     }
 
     public class RecentRewardItem
