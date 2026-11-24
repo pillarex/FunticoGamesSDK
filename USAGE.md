@@ -2637,7 +2637,7 @@ public async void OnLevelFinished(bool reachedExit, int coins, float timeSeconds
 
 ## Inventory Methods
 
-The Inventory module reads the items the player owns on the Funtico platform. It is **read-only**: items are granted by the platform (prizes, rewards, the shop), never through these methods.
+The Inventory module reads the items the player owns on the Funtico platform. Items are granted by the platform (prizes, rewards, the shop), never by the game client. The only way the client changes the inventory is to exchange items by the rules your studio configured for the game: **recipes** (`CraftItem`: fixed inputs into fixed outputs) and **fusions** (`FuseItems`: copies the player picks into one random result). Read the rules with `GetRecipes`.
 
 ### `GetInventory`
 
@@ -2697,7 +2697,7 @@ foreach (InventoryItem item in inventory.Items)
 
 ### `GetLastInventoryError`
 
-Gets the reason the last `GetInventory` call failed.
+Gets the reason the last `GetInventory`, `GetRecipes`, `CraftItem` or `FuseItems` call failed.
 
 **Signature:**
 ```csharp
@@ -2710,6 +2710,11 @@ public InventoryErrorResponse GetLastInventoryError()
 - `NotLinked` - The player is not linked to a Funtico account
 - `ReloginRequired` - The player's Funtico session belongs to another game or has expired. Log in to this game again (`Authentication` with a fresh platform token), then retry
 - `PlatformUnavailable` - The Funtico platform is temporarily unavailable. Retry later
+- `InvalidRequest` - A field of a craft or fusion is missing or malformed, for example the id or the idempotency key
+- `UnknownRule` - The game has no recipe or fusion with that key
+- `KeyReused` - The idempotency key was already used for a different action. Use a new key
+- `WrongItems` - The copies passed to `FuseItems` do not fit the fusion: not the player's, not eligible, or the wrong count
+- `Misconfigured` - The game's recipes or fusions are set up wrong. Not something the player can fix
 - `Unauthorized` - Set by the SDK: the player is not authenticated. Call `Authentication` first
 - `RequestFailed` - Set by the SDK: no connection, timeout, or an unexpected response. `Message` has the details
 
@@ -2771,6 +2776,161 @@ if (props?.Game != null)
     EquipToSlot(props.Game.Slot, item);
 }
 ```
+
+---
+
+### `GetRecipes`
+
+Gets the crafting recipes and fusions configured for your game. Read them to build the crafting screen instead of hardcoding them.
+
+**Signature:**
+```csharp
+public UniTask<RecipesResponse> GetRecipes()
+```
+
+**Returns:** `UniTask<RecipesResponse>` - `Recipes` (List\<CraftRecipe\>) and `Fusions` (List\<FusionRecipe\>), or null on failure (see `GetLastInventoryError`)
+
+**CraftRecipe Properties:**
+- `Key` (string) - Pass it to `CraftItem`
+- `Name` (string) - Display name (or null)
+- `HasId` (bool) - `true` when the item keys contain `{id}`, so `CraftItem` needs an id
+- `Inputs` / `Outputs` (List\<CraftRecipeItem\>) - `Item` (string) and `Amount` (int) lines: what the recipe takes and what it gives. `Item` is your studio's item key and may contain the placeholder `{id}`, which `CraftItem` fills with the id you pass: `sg_shard_{id}` with the id `laser_pulse` is `sg_shard_laser_pulse`
+
+**FusionRecipe Properties:**
+- `Key` (string) - Pass it to `FuseItems`
+- `Name` (string) - Display name (or null)
+- `Need` (int) - How many copies one fusion takes
+- `Inputs` (List\<string\>) - Your studio's item keys a picked copy may be of
+- `Results` (List\<string\>) - Your studio's item keys the random result may be
+
+**Description:**
+Always calls the server (nothing is cached): read it when the crafting screen opens.
+
+---
+
+### `CraftItem`
+
+Crafts by a fixed recipe: takes the recipe's `Inputs` from the player and gives its `Outputs`.
+
+**Signature:**
+```csharp
+public UniTask<CraftResult> CraftItem(string recipe, string id = null, string idempotencyKey = null)
+```
+
+**Parameters:**
+- `recipe` - `CraftRecipe.Key`
+- `id` - Fills `{id}` in the recipe's item keys: 1-48 characters of `a-z`, `0-9` and `_`. `null` for a recipe whose `HasId` is `false`
+- `idempotencyKey` - Optional: 8-64 characters of `A-Z a-z 0-9 _ . : -`. Calls with the same key are one action, done at most once. `null`: the SDK generates a new key for this call
+
+**Returns:** `UniTask<CraftResult>` - The outcome (see `CraftResult` below), or null on failure (see `GetLastInventoryError`)
+
+---
+
+### `FuseItems`
+
+Fuses copies the player picked: takes them and gives one random item of the fusion's `Results`.
+
+**Signature:**
+```csharp
+public UniTask<CraftResult> FuseItems(string fusion, IEnumerable<long> userItemIds, string idempotencyKey = null)
+```
+
+**Parameters:**
+- `fusion` - `FusionRecipe.Key`
+- `userItemIds` - Exactly `Need` copy ids, each once, from `InventoryItem.UserItemIds` of items whose `GameItemId` is in the fusion's `Inputs`. Copies that do not fit (not the player's, not eligible, the wrong count) fail with `WrongItems`
+- `idempotencyKey` - As for `CraftItem`
+
+**Returns:** `UniTask<CraftResult>` - The outcome (see `CraftResult` below), or null on failure (see `GetLastInventoryError`)
+
+---
+
+### `CraftResult`
+
+`CraftItem` and `FuseItems` return a `CraftResult` whenever the server decided, or has not decided yet. A refusal is a normal result, not a failure: the method returns null only when there is no outcome, and `GetLastInventoryError` then says why.
+
+**CraftResult Properties:**
+- `Status` (string) - See `CraftStatus`:
+  - `Succeeded` - Done. `Burned` lists what was taken, `Granted` what the player received
+  - `Pending` - Not confirmed yet. Call again with the same arguments and the same `IdempotencyKey` until the status is `Succeeded` or `Refused`. Nothing is lost or given twice
+  - `Refused` - Nothing changed; `Reason` says why. A new attempt needs a new key
+- `Replayed` (bool) - `true` when this answer repeats an earlier call made with the same key
+- `Burned` / `Granted` (List\<CraftResultItem\>) - `GameItemId` (string) and `UserItemIds` (List\<long\>) per item: the copies taken or given. Empty unless `Succeeded`
+- `Reason` (string) - Why a refused action was refused, as a machine-readable string, for example `not_enough_items`, `item_locked`, `unknown_game_item_id`, `max_supply_reached` (or null). Branch on it, never on `Message`
+- `Message` (string) - Human-readable detail (or null)
+- `OperationId` (string) - Id of the action. Quote it when reporting a problem
+- `IdempotencyKey` (string) - The key this call used: yours, or the one the SDK generated
+
+**Retrying:** Repeating the same action with the same key is always safe: it happens at most once, and a repeat answers with the first outcome (`Replayed: true`).
+- On `Pending`, call again with `result.IdempotencyKey`
+- When the call fails without an outcome (`RequestFailed`, `PlatformUnavailable`), you cannot tell whether it happened. To retry it with the same key, pass your own key and keep it until you get an outcome
+- After `Refused`, or to do the action once more (a second blueprint), use a new key, or pass `null`
+
+`GetInventory` is never cached, so call it after a `Succeeded` result to show the new items.
+
+**Usage:**
+```csharp
+// Calls again with the same key while the outcome is Pending. A failed retry keeps the Pending result.
+async UniTask<CraftResult> Settle(CraftResult result, Func<string, UniTask<CraftResult>> again)
+{
+    for (int attempt = 1; result?.Status == CraftStatus.Pending && attempt <= 5; attempt++)
+    {
+        await UniTask.Delay(TimeSpan.FromSeconds(attempt));
+        CraftResult next = await again(result.IdempotencyKey);
+        if (next == null)
+            break;
+        result = next;
+    }
+    return result;
+}
+
+RecipesResponse rules = await FunticoSDK.Instance.GetRecipes();
+if (rules == null)
+{
+    HandleInventoryError(FunticoSDK.Instance.GetLastInventoryError());
+    return;
+}
+
+// 1. Craft a blueprint from the shards of one part.
+CraftRecipe blueprint = rules.Recipes.Find(r => r.Key == "blueprint");
+string partId = "laser_pulse";
+CraftResult crafted = await Settle(
+    await FunticoSDK.Instance.CraftItem(blueprint.Key, partId),
+    key => FunticoSDK.Instance.CraftItem(blueprint.Key, partId, key));
+
+if (crafted == null)
+    HandleInventoryError(FunticoSDK.Instance.GetLastInventoryError());
+else if (crafted.Status == CraftStatus.Succeeded)
+    ShowReceived(crafted.Granted);                  // sg_bp_laser_pulse
+else if (crafted.Status == CraftStatus.Refused)
+    ShowRefusal(crafted.Reason, crafted.Message);   // e.g. "not_enough_items"
+else
+    ShowTryLater();                                 // still Pending: retry later with crafted.IdempotencyKey
+
+// 2. Fuse 4 copies the player picked from the inventory.
+FusionRecipe fusion = rules.Fusions.Find(f => f.Key == "rare_to_epic");
+InventoryResponse inventory = await FunticoSDK.Instance.GetInventory();
+if (inventory == null)
+    return;
+
+List<long> picked = inventory.Items
+    .Where(item => fusion.Inputs.Contains(item.GameItemId))
+    .SelectMany(item => item.UserItemIds)
+    .Take(fusion.Need)                              // in your game: the copies the player selected
+    .ToList();
+
+CraftResult fused = await Settle(
+    await FunticoSDK.Instance.FuseItems(fusion.Key, picked),
+    key => FunticoSDK.Instance.FuseItems(fusion.Key, picked, key));
+
+if (fused?.Status == CraftStatus.Succeeded)
+    ShowReceived(fused.Granted);                    // one random item of fusion.Results
+else if (fused == null && FunticoSDK.Instance.GetLastInventoryError()?.Error == InventoryErrorCodes.WrongItems)
+    PickAgain(await FunticoSDK.Instance.GetInventory()); // the picked copies no longer fit
+```
+
+**Important Notes:**
+- Failures are logged and do not show an `IErrorHandler` popup, like the other Inventory methods
+- `GetLastInventoryError` is cleared by every call that returns an outcome, including `Refused`
 
 ---
 
@@ -2838,6 +2998,15 @@ A typical flow:
 5. Repeat 3-4 until the run finishes
 6. In the menu: `GetGhostReportSummary` ("your ship won 12 fights while you were away"), `GetGhostHistory` and `GetGhostLeaderboard` (the season ranking)
 
+**Paid pools.** A pool whose `Entry` is set charges an entry in PLAYR for each run:
+- Show `pool.Entry.DisplayPrice` before the player enters
+- `StartGhostRun` charges the entry once per run. Calling it again resumes the same run and never charges again
+- After the charge, show `run.Entry.Amount` and `run.Entry.BalanceAfter`
+- `AbandonGhostRun` before the run got its first opponent refunds the entry: the run's `Entry.Status` becomes `"Refunded"`. Once an opponent was issued there is no refund
+- `InsufficientFunds`, `KycRequired` and `EntryUnavailable` mean nothing was charged and no run started. `PaymentPending` means the payment is not confirmed yet: call `StartGhostRun` again later; until then `FindGhostOpponent` fails with `PaymentPending` too
+
+Free pools have `Entry` null, and so do their runs.
+
 Every method calls the server (nothing is cached) and returns null on failure; `GetLastGhostError` then says why. Failures are logged and do not show an `IErrorHandler` popup.
 
 ### `GetGhostPools`
@@ -2859,6 +3028,12 @@ public UniTask<GhostPoolsResponse> GetGhostPools()
 - `MaxWins` / `MaxLosses` / `MaxRounds` (int?) - Run limits (null = no limit of that kind)
 - `Attributes` (List\<GhostPoolAttribute\>) - The attributes that describe a ship when searching or uploading
 - `Rating` (int) - The player's rating in the current season (the starting rating if the player has not fought yet)
+- `Entry` (GhostEntry) - The entry each run costs in a paid pool; null for a free pool
+
+**GhostEntry Properties:**
+- `Product` (string) - What the entry buys
+- `Tier` (string) - The price tier of the entry
+- `DisplayPrice` (string) - The price in PLAYR as a decimal string, e.g. `"100"`, to show before the player enters (or null)
 
 **GhostPoolAttribute Properties:**
 - `Name` (string) - Key to use in the `attributes` dictionary
@@ -2911,6 +3086,12 @@ In pools without runs both are always null; call `FindGhostOpponent` again to ge
 - `Fights` / `Wins` / `Losses` / `Draws` (int) - Fights so far
 - `MaxWins` / `MaxLosses` / `MaxRounds` (int?) - The pool's run limits
 - `StartedAt` (DateTime) / `FinishedAt` (DateTime?) - UTC timestamps
+- `Entry` (GhostRunEntry) - The run's entry payment in a paid pool; null in a free pool
+
+**GhostRunEntry Properties:**
+- `Status` (string) - `"Charged"` (paid), `"Pending"` (not confirmed yet), `"Refused"` (not paid), `"Refunded"` (paid back), `"RefundPending"` (being paid back); `GetStatus()` returns the typed `GhostEntryStatus?`
+- `Amount` (string) - The amount charged in PLAYR as a decimal string (or null)
+- `BalanceAfter` (string) - The player's PLAYR balance after the charge as a decimal string (or null)
 
 **Usage:**
 ```csharp
@@ -2944,6 +3125,34 @@ public UniTask<GhostRunResponse> StartGhostRun(string pool)
 **Description:**
 Safe to call repeatedly: an existing active run is returned instead of starting another. In a pool with `HasRun`, `FindGhostOpponent` and run-bound attributes need an active run. The run finishes on the server when one of its limits is reached; check `Run.GetStatus()` in the `ReportGhostResult` response.
 
+In a paid pool (`GhostPool.Entry` set) it charges the entry once per run; calling it again resumes the same run and never charges again. It fails with `InsufficientFunds`, `KycRequired` or `EntryUnavailable` when the entry cannot be paid (nothing is charged and no run starts), and with `PaymentPending` while the payment is not confirmed yet: call it again later.
+
+**Usage (paid pool):**
+```csharp
+GhostPool pool = (await FunticoSDK.Instance.GetGhostPools())?.Pools.Find(p => p.Key == "paid_arena");
+if (pool == null)
+    return;
+if (pool.Entry != null && !await ConfirmEntry(pool.Entry.DisplayPrice)) // "Enter for 100 PLAYR?"
+    return;
+
+GhostRunResponse started = await FunticoSDK.Instance.StartGhostRun(pool.Key);
+if (started?.Run?.Entry?.GetStatus() == GhostEntryStatus.Charged)
+{
+    ShowCharged(started.Run.Entry.Amount, started.Run.Entry.BalanceAfter);
+}
+else if (started == null)
+{
+    switch (FunticoSDK.Instance.GetLastGhostError()?.Error)
+    {
+        case GhostErrorCodes.InsufficientFunds: ShowTopUp(); break;
+        case GhostErrorCodes.KycRequired: ShowVerifyIdentity(); break;
+        case GhostErrorCodes.PaymentPending: RetryStartLater(); break; // never charges twice
+        case GhostErrorCodes.ReloginRequired: RequestLogin(); break;
+        default: ShowEntryUnavailable(); break;                        // EntryUnavailable and others
+    }
+}
+```
+
 ---
 
 ### `AbandonGhostRun`
@@ -2962,6 +3171,8 @@ public UniTask<GhostRunResponse> AbandonGhostRun(string pool)
 
 **Description:**
 An open match of the run is closed as unreported, exactly as if it had expired, so abandoning cannot be used to skip an unwanted opponent.
+
+In a paid pool, abandoning before the run got its first opponent refunds the entry: the returned run's `Entry.Status` is `"Refunded"` (or `"RefundPending"` while the refund is on its way). After an opponent was issued there is no refund.
 
 ---
 
@@ -3259,6 +3470,11 @@ public GhostErrorResponse GetLastGhostError()
 - `MatchExpired` - The match expired before it was reported
 - `InvalidSignature` - The report could not be verified (check the private key passed to `Initialize`)
 - `InvalidOutcome` - The outcome is not `Win`, `Loss` or `Draw`
+- `InsufficientFunds` - Paid pool: the player's balance is below the entry price. Nothing was charged and no run started
+- `KycRequired` - Paid pool: the player must complete identity verification before paying an entry
+- `EntryUnavailable` - Paid pool: the entry cannot be bought right now (no such product or price, the player is suspended, or paid entries are unavailable)
+- `PaymentPending` - Paid pool: the entry payment is not confirmed yet. Call `StartGhostRun` again; it never charges twice for one run. Until then the run gets no opponent (`FindGhostOpponent` fails with this too)
+- `ReloginRequired` - The player's Funtico session belongs to another game or has expired. Log in to this game again (`Authentication` with a fresh platform token), then retry
 - `Unauthorized` - Set by the SDK: the player is not authenticated. Call `Authentication` first
 - `RequestFailed` - Set by the SDK: no connection, timeout, or an unexpected response. `Message` has the details
 

@@ -37,6 +37,22 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>The player's rating in the current season (the starting rating if the player has not fought yet).</summary>
         public int Rating { get; set; }
+
+        /// <summary>The entry each run costs in a paid pool; null for a free pool.</summary>
+        public GhostEntry Entry { get; set; }
+    }
+
+    /// <summary>The entry a paid pool charges for each run.</summary>
+    public class GhostEntry
+    {
+        /// <summary>What the entry buys.</summary>
+        public string Product { get; set; }
+
+        /// <summary>The price tier of the entry.</summary>
+        public string Tier { get; set; }
+
+        /// <summary>The price in PLAYR as a decimal string (e.g. "100"), to show before the player enters. May be null.</summary>
+        public string DisplayPrice { get; set; }
     }
 
     public class GhostPoolAttribute
@@ -96,8 +112,48 @@ namespace FunticoGamesSDK.APIModels
         public DateTime StartedAt { get; set; }
         public DateTime? FinishedAt { get; set; }
 
+        /// <summary>The run's entry payment in a paid pool; null in a free pool.</summary>
+        public GhostRunEntry Entry { get; set; }
+
         /// <summary>The typed <see cref="Status"/>, or null if the value is not one this SDK knows.</summary>
         public GhostRunStatus? GetStatus() => GhostWireEnums.Parse<GhostRunStatus>(Status);
+    }
+
+    public enum GhostEntryStatus
+    {
+        /// <summary>Paid.</summary>
+        Charged = 0,
+
+        /// <summary>Not confirmed yet. Call StartGhostRun again; it never charges twice for one run.</summary>
+        Pending = 1,
+
+        /// <summary>Not paid.</summary>
+        Refused = 2,
+
+        /// <summary>Paid back: the run was abandoned before its first opponent.</summary>
+        Refunded = 3,
+
+        /// <summary>Being paid back.</summary>
+        RefundPending = 4
+    }
+
+    /// <summary>The entry payment of a run in a paid pool.</summary>
+    public class GhostRunEntry
+    {
+        /// <summary>
+        /// Raw wire value ("Charged", "Pending", "Refused", "Refunded", "RefundPending"); use
+        /// <see cref="GetStatus"/> for the typed enum.
+        /// </summary>
+        public string Status { get; set; }
+
+        /// <summary>The amount charged in PLAYR as a decimal string, or null.</summary>
+        public string Amount { get; set; }
+
+        /// <summary>The player's PLAYR balance after the charge as a decimal string, or null.</summary>
+        public string BalanceAfter { get; set; }
+
+        /// <summary>The typed <see cref="Status"/>, or null if the value is not one this SDK knows.</summary>
+        public GhostEntryStatus? GetStatus() => GhostWireEnums.Parse<GhostEntryStatus>(Status);
     }
 
     /// <summary>Response of GetGhostRun, StartGhostRun and AbandonGhostRun.</summary>
@@ -387,6 +443,30 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>The report's match data is over 32 KB. Nothing was recorded; report again without it.</summary>
         public const string DataTooLarge = "DataTooLarge";
+
+        /// <summary>Paid pool: the player's balance is below the entry price. Nothing was charged and no run started.</summary>
+        public const string InsufficientFunds = "InsufficientFunds";
+
+        /// <summary>Paid pool: the player must complete identity verification before paying an entry.</summary>
+        public const string KycRequired = "KycRequired";
+
+        /// <summary>
+        /// Paid pool: the entry cannot be bought right now (no such product or price, the player is
+        /// suspended, or paid entries are unavailable).
+        /// </summary>
+        public const string EntryUnavailable = "EntryUnavailable";
+
+        /// <summary>
+        /// Paid pool: the entry payment is not confirmed yet. Call StartGhostRun again; it never charges
+        /// twice for one run. Until then the run gets no opponent (FindGhostOpponent fails with this too).
+        /// </summary>
+        public const string PaymentPending = "PaymentPending";
+
+        /// <summary>
+        /// The player's Funtico session belongs to another game or has expired. Logging in to this game
+        /// again (<c>Authentication</c> with a fresh platform token) fixes it.
+        /// </summary>
+        public const string ReloginRequired = "ReloginRequired";
 
         /// <summary>
         /// (HTTP 401) The player is not authenticated. Set by the SDK; call <c>Authentication</c> first.

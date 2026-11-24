@@ -88,6 +88,27 @@ namespace FunticoGamesSDK.APIModels
         public const string PlatformUnavailable = "PlatformUnavailable";
 
         /// <summary>
+        /// (HTTP 400) A field of a craft or fusion is missing or malformed, for example the id or the
+        /// idempotency key.
+        /// </summary>
+        public const string InvalidRequest = "InvalidRequest";
+
+        /// <summary>(HTTP 404) The game has no recipe or fusion with that key.</summary>
+        public const string UnknownRule = "UnknownRule";
+
+        /// <summary>(HTTP 409) The idempotency key was already used for a different action. Use a new key.</summary>
+        public const string KeyReused = "KeyReused";
+
+        /// <summary>
+        /// (HTTP 422) The copies passed to FuseItems do not fit the fusion: not the player's, not eligible,
+        /// or the wrong count.
+        /// </summary>
+        public const string WrongItems = "WrongItems";
+
+        /// <summary>(HTTP 500) The game's recipes or fusions are set up wrong. Not something the player can fix.</summary>
+        public const string Misconfigured = "Misconfigured";
+
+        /// <summary>
         /// (HTTP 401) The player is not authenticated. Set by the SDK; call <c>Authentication</c> first.
         /// </summary>
         public const string Unauthorized = "Unauthorized";

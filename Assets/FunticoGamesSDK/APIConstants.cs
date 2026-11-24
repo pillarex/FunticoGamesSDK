@@ -113,6 +113,9 @@ namespace FunticoGamesSDK
         #region Inventory
 
         public static string Get_Inventory => API + "/Inventory";
+        public static string Get_Inventory_Recipes => API + "/Inventory/recipes";
+        public static string Post_Inventory_Craft => API + "/Inventory/craft";
+        public static string Post_Inventory_Fuse => API + "/Inventory/fuse";
         public static string Get_Recent_Rewards => API + "/Rewards/recent";
 
         #endregion

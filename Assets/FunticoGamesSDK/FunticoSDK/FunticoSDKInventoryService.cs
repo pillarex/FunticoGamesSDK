@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using FunticoGamesSDK.APIModels;
 using FunticoGamesSDK.InventoryProviders;
@@ -20,6 +21,14 @@ namespace FunticoGamesSDK
 
 		public T GetInventoryItemProperties<T>(InventoryItem item) =>
 			_inventoryProvider.GetInventoryItemProperties<T>(item);
+
+		public UniTask<RecipesResponse> GetRecipes() => _inventoryProvider.GetRecipes();
+
+		public UniTask<CraftResult> CraftItem(string recipe, string id = null, string idempotencyKey = null) =>
+			_inventoryProvider.CraftItem(recipe, id, idempotencyKey);
+
+		public UniTask<CraftResult> FuseItems(string fusion, IEnumerable<long> userItemIds, string idempotencyKey = null) =>
+			_inventoryProvider.FuseItems(fusion, userItemIds, idempotencyKey);
 
 		public UniTask<RecentRewardsResponse> GetRecentRewards(int limit = 20, System.DateTime? since = null) =>
 			_inventoryProvider.GetRecentRewards(limit, since);

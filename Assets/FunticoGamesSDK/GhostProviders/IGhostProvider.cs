@@ -29,19 +29,26 @@ namespace FunticoGamesSDK.GhostProviders
         /// <summary>
         /// Starts a run in the pool, or returns the active one if the player already has it.
         /// Only for pools with <c>HasRun</c>. Returns null on failure.
+        /// In a paid pool (<see cref="GhostPool.Entry"/> set) it charges the entry once per run: calling it
+        /// again resumes the same run and never charges again. <c>InsufficientFunds</c>, <c>KycRequired</c>
+        /// and <c>EntryUnavailable</c> mean nothing was charged and no run started; <c>PaymentPending</c>
+        /// means the payment is not confirmed yet, so call it again later.
         /// </summary>
         UniTask<GhostRunResponse> StartGhostRun(string pool);
 
         /// <summary>
         /// Gives up the player's active run. An open match of the run is closed as unreported.
         /// The response carries the closed run. Returns null on failure.
+        /// In a paid pool, abandoning before the run got its first opponent refunds the entry (the run's
+        /// <see cref="GhostRunEntry.Status"/> becomes Refunded); after an opponent was issued there is no refund.
         /// </summary>
         UniTask<GhostRunResponse> AbandonGhostRun(string pool);
 
         /// <summary>
         /// Finds an opponent and issues a match. Searching again before reporting returns the same
         /// open match. Returns null on failure; <c>NoOpponent</c> in <see cref="GetLastGhostError"/>
-        /// is a normal outcome (nobody and no bot available).
+        /// is a normal outcome (nobody and no bot available). In a paid pool it fails with
+        /// <c>PaymentPending</c> until the run's entry payment is confirmed.
         /// </summary>
         /// <param name="pool">The pool key.</param>
         /// <param name="attributes">Attribute values by name. Attributes bound to the run may be left out.</param>
