@@ -47,10 +47,12 @@ namespace FunticoGamesSDK.CommunityGoalProviders
             return response;
         }
 
-        public async UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null)
+        public async UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null, bool paid = false)
         {
             var url = APIConstants.WithQuery(APIConstants.Post_Community_Goal_Attempt_Start, "goalId=" + Id(goalId));
-            var body = string.IsNullOrEmpty(startData) ? null : new StartGoalAttemptRequest { StartData = startData };
+            var body = string.IsNullOrEmpty(startData) && !paid
+                ? null
+                : new StartGoalAttemptRequest { StartData = string.IsNullOrEmpty(startData) ? null : startData, Paid = paid };
             var response = await Post<StartGoalAttemptResponse>(url, body, "attempt start");
             if (response == null)
                 return null;
@@ -283,8 +285,10 @@ namespace FunticoGamesSDK.CommunityGoalProviders
         private void Log(string action)
         {
             var text = $"Community goal {action} failed: {_lastError.Error} {_lastError.Message}";
-            // A closed goal and a used-up daily quota are normal outcomes, not faults.
-            if (_lastError.Error == CommunityGoalErrorCodes.GoalClosed || _lastError.Error == CommunityGoalErrorCodes.NoAttemptsLeft)
+            // A closed goal, a used-up daily quota and a paid attempt the player cannot pay for are normal outcomes, not faults.
+            if (_lastError.Error == CommunityGoalErrorCodes.GoalClosed || _lastError.Error == CommunityGoalErrorCodes.NoAttemptsLeft ||
+                _lastError.Error == CommunityGoalErrorCodes.NoPaidAttemptsLeft || _lastError.Error == CommunityGoalErrorCodes.InsufficientFunds ||
+                _lastError.Error == CommunityGoalErrorCodes.PaymentPending)
                 Logger.Log(text);
             else
                 Logger.LogError(text);

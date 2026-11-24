@@ -3521,6 +3521,8 @@ A typical flow:
 4. While the goal is on screen, follow it with `WatchCommunityGoal(goalId, onChange)` (or poll `GetCommunityGoalLive(goalId)` yourself, waiting `PollAfterSeconds` between calls)
 5. `GetCommunityGoalLeaderboard(goalId)` for the ranking, `GetCommunityGoalHistory("world-boss")` for past goals
 
+**Paid attempts.** A chain may also sell attempts for PLAYR (`Chain.PaidAttempts`: the price and a daily limit of its own). `StartGoalAttempt(goalId, paid: true)` charges the price once and returns the attempt when it is paid. A paid attempt counts in the goal and the leaderboard exactly like a free one. It is paid back only if it never reached the player; once returned there is no refund, also when it expires unfinished.
+
 **Rewards.** Each goal lists its reward brackets in `Goal.Rewards`, top-down (`#1`, `#2`, `#3`, `TOP 10%`, `ANY HIT`...). When the goal settles, every contributor gets the **first** bracket their final place matches, and only that one (`Me.Bracket`). The rewards then reach the player's inventory by themselves; `Me.RewardStatus` says where they are and `Me.Rewards` lists what arrived. `GetRecentRewards` lists the same entries with `Source` = `"CommunityGoal"`.
 
 Every method calls the server (nothing is cached) and returns null on failure; `GetLastCommunityGoalError` then says why. Failures are logged and do not show an `IErrorHandler` popup.
@@ -3530,7 +3532,7 @@ Every method calls the server (nothing is cached) and returns null on failure; `
 public UniTask<CommunityGoalResponse> GetCommunityGoal(string chainKey)
 public UniTask<CommunityGoalResponse> GetCommunityGoalById(Guid goalId)
 public UniTask<CommunityGoalLiveResponse> GetCommunityGoalLive(Guid goalId)
-public UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null)
+public UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null, bool paid = false)
 public UniTask<CompleteGoalAttemptResponse> CompleteGoalAttempt(GoalAttemptDto attempt, long contribution,
     double? clientDurationSeconds = null, IDictionary<string, double> metrics = null, string fightHash = null,
     string strikeData = null)
@@ -3547,7 +3549,7 @@ public CommunityGoalErrorResponse GetLastCommunityGoalError()
 `GetCommunityGoal` returns the chain's open goal, or its latest goal while the next one is not open yet. `GetCommunityGoalById` returns any goal of the game, open or past (e.g. the one an attempt belongs to).
 
 **CommunityGoalResponse Properties:**
-- `Chain` - `Key`, `Name`, `Scoring` (`CommunityGoalScorings`: `"Sum"` of all contributions, the single `"Best"`, or `"BestPerDay"`: the best of each UTC day, summed), `FreeAttemptsPerDay` (0 = no limit), `MinAttemptSeconds` (shortest accepted attempt), `AttemptTtlSeconds` (time to complete an attempt), `Milestones` (progress fractions between 0 and 1, ascending)
+- `Chain` - `Key`, `Name`, `Scoring` (`CommunityGoalScorings`: `"Sum"` of all contributions, the single `"Best"`, or `"BestPerDay"`: the best of each UTC day, summed), `FreeAttemptsPerDay` (0 = no limit), `MinAttemptSeconds` (shortest accepted attempt), `AttemptTtlSeconds` (time to complete an attempt), `Milestones` (progress fractions between 0 and 1, ascending), `PaidAttempts` (`CommunityGoalPaidAttempts`: `Product`, `Tier`, `DisplayPrice` (the price in PLAYR as a decimal string, to show before buying; null when it is not on sale) and `PerDay` (0 = no limit); null when the chain sells no paid attempts)
 - `Goal` - The goal; null when the chain has never had one
 - `AwaitingNext` (bool) - The chain has no open goal right now: the last one closed and the next is not open yet
 - `Me` - The player's own state; null when no player is signed in
@@ -3570,8 +3572,9 @@ public CommunityGoalErrorResponse GetLastCommunityGoalError()
 
 **CommunityGoalMeDto Properties:**
 - `IsContributor` (bool), `Score` (long), `Place` (int?, null until the player contributes), `Contributed` (long), `Best` (long, the player's largest single accepted contribution: the "best strike"), `Attempts` (int, completed attempts on this goal)
-- `AttemptsUsedToday` (int) / `AttemptsLeftToday` (int?, null when the chain has no daily limit) / `ResetsAt` (DateTime, UTC midnight) - Attempts are counted per UTC day across the whole chain
-- `OpenAttempt` (GoalAttemptDto) - The player's live attempt in the chain, possibly on another goal; null when there is none
+- `AttemptsUsedToday` (int) / `AttemptsLeftToday` (int?, null when the chain has no daily limit) / `ResetsAt` (DateTime, UTC midnight) - Free attempts, counted per UTC day across the whole chain
+- `PaidAttemptsUsedToday` (int) / `PaidAttemptsLeftToday` (int?, null when the chain sells none or has no limit on them) - Paid attempts, counted the same way
+- `OpenAttempt` (GoalAttemptDto) - The player's live attempt in the chain, possibly on another goal; null when there is none. A paid attempt shows here only once it is paid
 - `FinalPlace` (int?) / `Bracket` (string) - For a settled goal: the final place and the reward bracket it fell into
 - `RewardStatus` (string) - For a settled goal: `CommunityGoalRewardStatuses` - `"None"` (no bracket, or nothing payable), `"Pending"` (placed, not drawn yet: usually within a minute of settling), `"Queued"` (drawn, at least one still on its way; it arrives by itself, at the latest after the next sign-in), `"Delivered"` (everything drawn has arrived; a draw may come up empty), `"Failed"` (nothing left to send, but part of it was not accepted). Null before settlement or for a non-contributor
 - `Rewards` (List\<RecentReward\>) - What this goal paid the player, with item names and images: the same shape `GetRecentRewards` returns
@@ -3604,18 +3607,40 @@ void OnBossScreenClosed() => _watch?.Stop();
 
 ### `StartGoalAttempt`
 
-Starts an attempt on an open goal and spends one of today's attempts.
+Starts an attempt on an open goal and spends one of today's free attempts, or buys a paid one.
 
 **StartGoalAttemptResponse Properties:**
-- `Attempt` (GoalAttemptDto) - `AttemptId`, `GoalId`, `Seed` (int, chosen by the server), `StartedAt`, `ExpiresAt` (UTC), `GoalValueAtStart`, `MilestonesAtStart` (the goal's value and passed milestones when the attempt started: the phase to play in) and `StartData` (what you passed as `startData`, unchanged; null if none). All of them are the same every time the attempt is resumed
+- `Attempt` (GoalAttemptDto) - `AttemptId`, `GoalId`, `Seed` (int, chosen by the server), `StartedAt`, `ExpiresAt` (UTC), `GoalValueAtStart`, `MilestonesAtStart` (the goal's value and passed milestones when the attempt started: the phase to play in) `StartData` (what you passed as `startData`, unchanged; null if none) and `Paid` (bool, `true` for a paid attempt). All of them are the same every time the attempt is resumed
 - `Resumed` (bool) - `true` when this is the player's already-live attempt returned again; nothing was spent
 - `Goal` (CommunityGoalDto) - The goal of the attempt with its `PayloadJson` and its current state. On a resumed attempt the goal may have passed more milestones since the start: play in the phase of `Attempt.MilestonesAtStart`
-- `AttemptsLeftToday` (int?) / `ResetsAt` (DateTime)
+- `AttemptsLeftToday` (int?) / `PaidAttemptsLeftToday` (int?) / `ResetsAt` (DateTime)
+- `Entry` (GoalAttemptEntry) - The payment of a paid attempt: `Status` (`"Charged"` whenever the attempt is returned), `Amount` and `BalanceAfter` (PLAYR as decimal strings); null for a free attempt
 
 **Description:**
 A player has at most one live attempt per chain. Calling `StartGoalAttempt` while one is live returns **that attempt again** (`Resumed` = `true`), so after a reload or a crash the game can simply call it again and continue. The live attempt may belong to another goal of the chain: check `Attempt.GoalId`. `GoalClosed` and `NoAttemptsLeft` are normal outcomes (see `GetLastCommunityGoalError`).
 
 `startData` (optional, up to 8 KB in UTF-8) is your own data for the attempt, for example the build it starts with. It is kept with a new attempt and comes back in `Attempt.StartData` on every resume and in `Me.OpenAttempt`, so an unfinished strike can be continued with the same build on another device. When the live attempt is returned again, a new `startData` is ignored: the first one stays. Too long: `DataTooLarge`, nothing spent.
+
+`paid: true` buys one of the chain's paid attempts instead of spending a free one; show its price from `Chain.PaidAttempts.DisplayPrice`. The price is charged once per attempt: calling again (after a reload, or after `PaymentPending`) never charges twice. The attempt is returned only when it is paid. It is paid back only if it never reached the player: the payment was refused, or it was confirmed only after the attempt had run out. Once returned there is no refund, also when it expires unfinished. While a live attempt exists, that one is returned whatever `paid` says, so check `Attempt.Paid`. A paid attempt can fail with `NoPaidAttemptsLeft`, `InsufficientFunds`, `KycRequired` or `EntryUnavailable` (nothing charged in any of these), `PaymentPending` (call again later) or `ReloginRequired`.
+
+```csharp
+// Out of free attempts: offer a paid one while the chain sells them and today's limit allows.
+CommunityGoalPaidAttempts paid = state.Chain.PaidAttempts;
+if (state.Me?.AttemptsLeftToday == 0 && paid?.DisplayPrice != null && state.Me.PaidAttemptsLeftToday != 0)
+{
+    ShowBuyButton($"{paid.DisplayPrice} PLAYR", async () =>
+    {
+        StartGoalAttemptResponse bought = await FunticoSDK.Instance.StartGoalAttempt(state.Goal.GoalId, paid: true);
+        if (bought != null) { PlayStrike(bought.Attempt, bought.Goal); return; }
+        switch (FunticoSDK.Instance.GetLastCommunityGoalError()?.Error)
+        {
+            case CommunityGoalErrorCodes.InsufficientFunds: ShowTopUp(); break;
+            case CommunityGoalErrorCodes.PaymentPending: RetryShortly(); break; // never charged twice
+            default: ShowRetryButton(); break;
+        }
+    });
+}
+```
 
 ### `CompleteGoalAttempt`
 
@@ -3636,7 +3661,7 @@ Completes an attempt with its contribution.
 - `GoalStatus` (string), `GoalClosed` (bool), `ClosedByMe` (bool, this contribution reached the target), `NextGoalId` (Guid?, the goal opened after a closed one)
 - `Score` (long), `ScoreImproved` (bool), `Place` (int?)
 - `Best` (long) - The player's best strike on this goal, this one included; `IsNewBest` (bool) - this contribution beat every earlier one of the player on this goal (the same on a replay), e.g. for a "NEW BEST" banner
-- `AttemptsLeftToday` (int?), `ResetsAt` (DateTime)
+- `AttemptsLeftToday` (int?), `PaidAttemptsLeftToday` (int?), `ResetsAt` (DateTime)
 - `Replayed` (bool) - `true` when this answers a repeat of an already completed attempt
 
 **Description:**
@@ -3692,6 +3717,12 @@ A player's best strike on a goal, by the `BestStrikeId` of their leaderboard row
 - `InvalidContribution` - The contribution is not a whole number of 0 or more
 - `DataTooLarge` - `startData` (8 KB) or `strikeData` (16 KB) is too long in UTF-8. Nothing was spent or counted; the attempt stays open
 - `StrikeNotFound` - No such best strike on this goal any more. Reload the leaderboard
+- `NoPaidAttemptsLeft` - Today's paid attempts are used up. `ResetsAt` says when they reset (UTC). Nothing was charged
+- `InsufficientFunds` - Paid attempt: the player's PLAYR balance is below the price. Nothing was charged
+- `KycRequired` - Paid attempt: the player must complete identity verification first. Nothing was charged
+- `EntryUnavailable` - Paid attempt: it cannot be bought right now (the chain sells none, it is not on sale, or the player is suspended). Nothing was charged
+- `PaymentPending` - Paid attempt: the payment is not confirmed yet. Call `StartGoalAttempt` again: it never charges twice
+- `ReloginRequired` - The player's Funtico session belongs to another game or has expired. Logging in to this game again fixes it
 - `Unauthorized` - Set by the SDK: the player is not authenticated. Call `Authentication` first
 - `RequestFailed` - Set by the SDK: no connection, timeout, or an unexpected response. `Message` has the details
 

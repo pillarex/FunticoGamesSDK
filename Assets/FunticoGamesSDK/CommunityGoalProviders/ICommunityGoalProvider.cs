@@ -39,6 +39,14 @@ namespace FunticoGamesSDK.CommunityGoalProviders
         /// nothing is spent (use it to resume after a reload). Returns null on failure:
         /// <c>GoalClosed</c> (see <see cref="CommunityGoalErrorResponse.NextGoalId"/>) and
         /// <c>NoAttemptsLeft</c> (see <see cref="CommunityGoalErrorResponse.ResetsAt"/>) are normal outcomes.
+        /// <para>
+        /// With <paramref name="paid"/> the attempt is one of the chain's paid ones
+        /// (<see cref="CommunityGoalChainDto.PaidAttempts"/>): the price is charged once per attempt (calling again never
+        /// charges twice) and the attempt is returned only when it is paid (<c>Entry.Status</c> "Charged"). It is paid
+        /// back only if it never reached the player; once returned there is no refund, also when it expires unfinished.
+        /// Paid failures: <c>NoPaidAttemptsLeft</c>, <c>InsufficientFunds</c>, <c>KycRequired</c>, <c>EntryUnavailable</c>
+        /// (nothing charged), <c>PaymentPending</c> (call again later) and <c>ReloginRequired</c>.
+        /// </para>
         /// </summary>
         /// <param name="goalId">The goal to strike.</param>
         /// <param name="startData">
@@ -46,7 +54,11 @@ namespace FunticoGamesSDK.CommunityGoalProviders
         /// as is and returned in <c>Attempt.StartData</c>, also on every resume (another device can continue the
         /// attempt with it). Ignored when the live attempt is returned again: the first one sent stays.
         /// </param>
-        UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null);
+        /// <param name="paid">
+        /// True to buy a paid attempt instead of spending a free one. Ignored when the live attempt is returned again
+        /// (check <c>Attempt.Paid</c>).
+        /// </param>
+        UniTask<StartGoalAttemptResponse> StartGoalAttempt(Guid goalId, string startData = null, bool paid = false);
 
         /// <summary>
         /// Completes an attempt with its contribution, encrypted and signed with the game's private key.

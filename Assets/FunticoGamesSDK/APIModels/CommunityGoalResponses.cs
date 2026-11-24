@@ -47,6 +47,41 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>Progress fractions (0 &lt; f &lt; 1) the game wants to know about, ascending.</summary>
         public List<double> Milestones { get; set; } = new List<double>();
+
+        /// <summary>Extra attempts the chain sells for PLAYR; null when it sells none.</summary>
+        public CommunityGoalPaidAttempts PaidAttempts { get; set; }
+    }
+
+    /// <summary>The paid attempts of a chain. A paid attempt counts in the goal like a free one.</summary>
+    public class CommunityGoalPaidAttempts
+    {
+        /// <summary>What the attempt buys.</summary>
+        public string Product { get; set; }
+
+        /// <summary>The price tier of the attempt.</summary>
+        public string Tier { get; set; }
+
+        /// <summary>The price in PLAYR as a decimal string (e.g. "100"), to show before the player buys. Null when it is not on sale.</summary>
+        public string DisplayPrice { get; set; }
+
+        /// <summary>Paid attempts per player per UTC day across the whole chain; 0 means no limit.</summary>
+        public int PerDay { get; set; }
+    }
+
+    /// <summary>The payment of one paid attempt.</summary>
+    public class GoalAttemptEntry
+    {
+        /// <summary>
+        /// "Charged" (paid; always so when the attempt is returned), "Pending" (not confirmed yet), "Refused",
+        /// "Refunded" (paid back: the attempt never reached the player) or "RefundPending".
+        /// </summary>
+        public string Status { get; set; }
+
+        /// <summary>The amount charged in PLAYR as a decimal string, or null.</summary>
+        public string Amount { get; set; }
+
+        /// <summary>The player's PLAYR balance after the charge as a decimal string, or null.</summary>
+        public string BalanceAfter { get; set; }
     }
 
     public class CommunityGoalDto
@@ -163,16 +198,25 @@ namespace FunticoGamesSDK.APIModels
         /// <summary>Completed attempts on this goal.</summary>
         public int Attempts { get; set; }
 
-        /// <summary>Attempts started today (UTC) anywhere in the chain.</summary>
+        /// <summary>Free attempts started today (UTC) anywhere in the chain.</summary>
         public int AttemptsUsedToday { get; set; }
 
-        /// <summary>Null when the chain has no daily limit.</summary>
+        /// <summary>Free attempts left today; null when the chain has no daily limit.</summary>
         public int? AttemptsLeftToday { get; set; }
+
+        /// <summary>Paid attempts started today (UTC) anywhere in the chain.</summary>
+        public int PaidAttemptsUsedToday { get; set; }
+
+        /// <summary>Paid attempts left today; null when the chain sells none or has no limit on them.</summary>
+        public int? PaidAttemptsLeftToday { get; set; }
 
         /// <summary>When the daily attempts reset (UTC midnight).</summary>
         public DateTime ResetsAt { get; set; }
 
-        /// <summary>The player's live attempt in the chain (possibly on another goal); finish it before starting a new one.</summary>
+        /// <summary>
+        /// The player's live attempt in the chain (possibly on another goal); finish it before starting a new one.
+        /// A paid attempt shows here only once it is paid.
+        /// </summary>
         public GoalAttemptDto OpenAttempt { get; set; }
 
         /// <summary>Settled goals: the player's final place.</summary>
@@ -216,12 +260,16 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>What the game sent as startData when the attempt started, unchanged; the same on every resume. Null if none.</summary>
         public string StartData { get; set; }
+
+        /// <summary>True for a paid attempt.</summary>
+        public bool Paid { get; set; }
     }
 
-    /// <summary>Body of StartGoalAttempt when the game sends startData. Built by the SDK.</summary>
+    /// <summary>Body of StartGoalAttempt when the game sends startData or buys a paid attempt. Built by the SDK.</summary>
     public class StartGoalAttemptRequest
     {
         public string StartData { get; set; }
+        public bool Paid { get; set; }
     }
 
     /// <summary>Response of GetCommunityGoalLive: the shared state only, for polling.</summary>
@@ -262,11 +310,17 @@ namespace FunticoGamesSDK.APIModels
         /// <summary>The goal the attempt belongs to, as it stood at the start. Play against this state and payload.</summary>
         public CommunityGoalDto Goal { get; set; }
 
-        /// <summary>Null when the chain has no daily limit.</summary>
+        /// <summary>Free attempts left today; null when the chain has no daily limit.</summary>
         public int? AttemptsLeftToday { get; set; }
+
+        /// <summary>Paid attempts left today; null when the chain sells none or has no limit on them.</summary>
+        public int? PaidAttemptsLeftToday { get; set; }
 
         /// <summary>When the daily attempts reset (UTC midnight).</summary>
         public DateTime ResetsAt { get; set; }
+
+        /// <summary>The payment of a paid attempt; null for a free one.</summary>
+        public GoalAttemptEntry Entry { get; set; }
     }
 
     /// <summary>Body of the attempt completion. Built and signed by the SDK.</summary>
@@ -329,6 +383,9 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>Null when the chain has no daily limit.</summary>
         public int? AttemptsLeftToday { get; set; }
+
+        /// <summary>Paid attempts left today; null when the chain sells none or has no limit on them.</summary>
+        public int? PaidAttemptsLeftToday { get; set; }
 
         public DateTime ResetsAt { get; set; }
     }
@@ -483,7 +540,7 @@ namespace FunticoGamesSDK.APIModels
         /// <summary>GoalClosed: the goal that is open in the chain now, if any.</summary>
         public Guid? NextGoalId { get; set; }
 
-        /// <summary>NoAttemptsLeft: when the daily attempts reset (UTC midnight).</summary>
+        /// <summary>NoAttemptsLeft and NoPaidAttemptsLeft: when the daily attempts reset (UTC midnight).</summary>
         public DateTime? ResetsAt { get; set; }
     }
 
@@ -527,6 +584,36 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>No such best strike on this goal any more (the player has struck harder since, or was removed).</summary>
         public const string StrikeNotFound = "StrikeNotFound";
+
+        /// <summary>
+        /// Paid attempt: today's paid attempts of the chain are used up. <see cref="CommunityGoalErrorResponse.ResetsAt"/>
+        /// says when they reset. Nothing was charged.
+        /// </summary>
+        public const string NoPaidAttemptsLeft = "NoPaidAttemptsLeft";
+
+        /// <summary>Paid attempt: the player's balance is below the price. Nothing was charged and no attempt started.</summary>
+        public const string InsufficientFunds = "InsufficientFunds";
+
+        /// <summary>Paid attempt: the player must complete identity verification before paying. Nothing was charged.</summary>
+        public const string KycRequired = "KycRequired";
+
+        /// <summary>
+        /// Paid attempt: it cannot be bought right now (the chain sells none, it is not on sale, or the player is
+        /// suspended). Nothing was charged.
+        /// </summary>
+        public const string EntryUnavailable = "EntryUnavailable";
+
+        /// <summary>
+        /// Paid attempt: the payment is not confirmed yet. Call StartGoalAttempt again; it never charges twice for
+        /// one attempt, and the attempt is returned once it is paid.
+        /// </summary>
+        public const string PaymentPending = "PaymentPending";
+
+        /// <summary>
+        /// The player's Funtico session belongs to another game or has expired. Logging in to this game
+        /// again (<c>Authentication</c> with a fresh platform token) fixes it.
+        /// </summary>
+        public const string ReloginRequired = "ReloginRequired";
 
         /// <summary>
         /// (HTTP 401) The player is not authenticated. Set by the SDK; starting and completing
