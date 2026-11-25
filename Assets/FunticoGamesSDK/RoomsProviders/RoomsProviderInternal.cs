@@ -141,8 +141,9 @@ namespace FunticoGamesSDK.RoomsProviders
         private async UniTask<string> GetRoomSettingsInternal(string guid)
         {
             var url = $"{APIConstants.Get_Room_Settings}?eventId={guid}";
-            (bool success, string response) =
-                await HTTPClient.Get<string>(url);
+            // The body is the settings JSON itself (usually an object), so it is returned as text, not parsed
+            // as a JSON string.
+            (bool success, string response) = await HTTPClient.GetText(url);
             if (!success)
                 Logger.LogError("Failed to get room settings");
             return response;

@@ -141,11 +141,6 @@ namespace FunticoGamesSDK.RoomsProviders
 			return model;
 		}
 
-		public UniTask<string> GetRoomSettings(string guid)
-		{
-			throw new NotImplementedException();
-		}
-
 		public async UniTask<RoomTierEnum?> GetTierByEventId(string eventId, RoomType roomType)
 		{
 			if (LastRoomsResponse == null)

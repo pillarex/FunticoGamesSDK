@@ -677,10 +677,10 @@ public UniTask<string> GetRoomSettings(string guid)
 **Parameters:**
 - `guid` - Room unique identifier
 
-**Returns:** `UniTask<string>` - JSON string containing room settings
+**Returns:** `UniTask<string>` - The room settings as JSON text (or `null` if the request failed)
 
 **Description:**
-Retrieves custom game settings configured for the room. The structure of returned JSON depends on your game's configuration.
+Retrieves custom game settings configured for the room. The structure of returned JSON depends on your game's configuration. To get the settings already parsed, use `GetRoomSettingsObject<T>(string guid)`, which deserializes them into `T` (`null`/default on failure).
 
 **Usage:**
 ```csharp
@@ -691,6 +691,9 @@ var settings = JsonConvert.DeserializeObject<MyGameSettings>(settingsJson);
 
 Debug.Log($"Difficulty: {settings.difficulty}");
 Debug.Log($"Time Limit: {settings.timeLimit}");
+
+// Or let the SDK parse it
+MyGameSettings parsed = await FunticoSDK.Instance.GetRoomSettingsObject<MyGameSettings>("room-guid");
 ```
 
 ---

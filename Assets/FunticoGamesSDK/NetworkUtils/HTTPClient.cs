@@ -104,6 +104,20 @@ namespace FunticoGamesSDK.NetworkUtils
             }
         }
 
+        /// <summary>GET that returns the response body as it is, without parsing it. Null on failure.</summary>
+        public static async Task<Tuple<bool, string>> GetText(string endPoint, string tokenToUse = null)
+        {
+            using UnityWebRequest getRequest = CreateRequest(endPoint, tokenToUse);
+            getRequest.SendWebRequest();
+
+            while (!getRequest.isDone) await DelayAsync(0.01f);
+
+            LogResponse(getRequest);
+
+            var success = getRequest.result == UnityWebRequest.Result.Success;
+            return new Tuple<bool, string>(success, success ? getRequest.downloadHandler.text : null);
+        }
+
         public static async Task<Tuple<bool, T>> Post<T>(string endPoint, object data, Action<UnityWebRequest> errorHandler = null, string tokenToUse = null)
         {
             using UnityWebRequest getRequest = CreateRequest(endPoint, tokenToUse, RequestType.POST, data);
