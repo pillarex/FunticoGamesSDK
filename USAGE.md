@@ -220,7 +220,7 @@ string platformToken = FunticoSDK.Instance.GetPlatformToken();
 
 ### `GetUserData`
 
-Gets user profile data including name, level, experience, currency, and preferences.
+Gets user profile data including name, level, experience, TICO balance, and preferences.
 
 **Signature:**
 ```csharp
@@ -243,14 +243,17 @@ Retrieves complete user profile information. On first call or when `useCache=fal
 - `Rating` (int) - Player rating
 - `Experience` (int) - Current experience points
 - `ExperienceToLevel` (int) - Experience needed for next level
-- `Coins` (double) - In-game coins balance
-- `Diamonds` (double) - Premium currency balance
+- `Tico` (double) - TICO balance (JSON field `Diamonds`)
 - `SemiFinalTickets` (uint) - Semi-final tickets count
 - `FinalTickets` (uint) - Final tickets count
 - `PrivateTickets` (uint) - Private room tickets count
 - `KYCVerified` (bool) - KYC verification status
 - `SoundsValue` (float) - Sound volume preference
 - `MusicValue` (float) - Music volume preference
+- `AvatarUrl` / `AvatarType` (string) - Player avatar image URL and its type
+- `AvatarBorder` / `AvatarBorderType` (string) - Player avatar border image URL and its type
+
+There is no separate in-game coins balance.
 
 **Usage:**
 ```csharp
@@ -307,8 +310,7 @@ public UniTask<BalanceResponse> GetBalance(bool useCache = true)
 Retrieves user balance for all currency types. On first call or when `useCache=false`, fetches from server and caches the result.
 
 **BalanceResponse Properties:**
-- `Coins` (double) - In-game coins
-- `Diamonds` (double) - Premium currency
+- `Tico` (double) - TICO balance (JSON field `Diamonds`)
 - `SemiFinalTickets` (uint) - Semi-final tickets
 - `FinalTickets` (uint) - Final tickets
 - `PrivateTickets` (uint) - Private tickets
@@ -344,8 +346,8 @@ Returns previously cached balance instantly. Returns `null` if no balance has be
 BalanceResponse balance = FunticoSDK.Instance.GetCachedBalance();
 if (balance != null)
 {
-    coinsText.text = balance.Coins.ToString();
-    diamondsText.text = balance.Diamonds.ToString();
+    ticoText.text = balance.Tico.ToString();
+    ticketsText.text = $"Finals: {balance.FinalTickets}, Semifinals: {balance.SemiFinalTickets}";
 }
 ```
 
@@ -567,25 +569,31 @@ foreach (var tier in tiers)
 
 ### `GetRooms`
 
-Gets available tournament rooms, optionally filtered by tier.
+Gets available tournament rooms of one room type, optionally filtered by tier.
 
 **Signature:**
 ```csharp
-public UniTask<List<RoomViewModel>> GetRooms(RoomTierEnum? tier)
+public UniTask<List<RoomViewModel>> GetRooms(
+    RoomTierEnum? tier,
+    RoomType roomType = RoomType.singleplayer)
 ```
 
 **Parameters:**
 - `tier` - Optional tier filter. Pass `null` to get all rooms, or specific tier (Contender/Challenger/Champion)
+- `roomType` - Which kind of rooms to list: `RoomType.singleplayer` (default), `RoomType.multiplayer` or `RoomType.external` (see [`JoinExternalMatch`](#joinexternalmatch))
 
 **Returns:** `UniTask<List<RoomViewModel>>` - List of available rooms
 
 **Description:**
-Retrieves list of available tournament rooms. Can be filtered by tier or retrieve all rooms.
+Retrieves list of available tournament rooms of the given type. Can be filtered by tier or retrieve all rooms. Without `roomType` only single-player rooms are listed.
 
 **RoomViewModel Properties:**
 - `Guid` (string) - Unique room identifier
 - `Name` (string) - Room display name
+- `Description` (string) - Room description
 - `Tier` (RoomTierEnum) - Room tier
+- `HasPassword` (bool?) - Whether the room needs a password
+- `RoomSize` (int?) - Room size
 - `EntryFee` (ulong) - Entry fee amount
 - `EntryFeeUSDT` (float) - Approximate fee in USDT
 - `TotalPrize` (ulong) - Total prize pool
@@ -597,11 +605,15 @@ Retrieves list of available tournament rooms. Can be filtered by tier or retriev
 - `FeeIcon` (Sprite) - Currency icon sprite
 - `LoadRoomImageTask` (Func<Task<Sprite>>) - Function to load room image
 - `IsPrePaid` (bool) - Whether room is pre-paid
+- `Config` (RoomConfig) - The room's full configuration
 
 **Usage:**
 ```csharp
-// Get all rooms
+// Get all single-player rooms
 List<RoomViewModel> allRooms = await FunticoSDK.Instance.GetRooms(null);
+
+// Get all external (PvP) rooms
+List<RoomViewModel> externalRooms = await FunticoSDK.Instance.GetRooms(null, RoomType.external);
 
 // Get only Champion tier rooms
 List<RoomViewModel> championRooms = await FunticoSDK.Instance.GetRooms(RoomTierEnum.Champion);
@@ -745,6 +757,55 @@ else
 - Uses voucher if available
 - Returns null if join fails (insufficient funds, room full, etc.)
 - Error details shown via IErrorHandler
+
+---
+
+### `JoinExternalMatch`
+
+Registers this player in a match of an external (PvP) room that your own matchmaking formed.
+
+**Signature:**
+```csharp
+public UniTask<RoomData> JoinExternalMatch(
+    string eventId,
+    string matchId,
+    string password = null,
+    bool useVoucher = false)
+```
+
+**Parameters:**
+- `eventId` - The room's id (a GUID)
+- `matchId` - The match's GUID, the same for all of its players. Your game server makes it once per match
+- `password` - The room's password, for a room that has one
+- `useVoucher` - Spend a free-entry voucher instead of the entry fee
+
+**Returns:** `UniTask<RoomData>` - The room data to report under (`SessionOrMatchId` is the match id), or `null` on failure
+
+**Description:**
+Every player of the match calls it with the same `matchId`. The room's entry fee, if any, is charged here. External rooms are listed with `GetRooms(null, RoomType.external)`.
+
+When the match is over, report every player's score under the same `matchId` with [`FinishRoomSession_Server`](#finishroomsession_server) (a `null` score means the player left). Prizes are paid by place once every player of the match has a score.
+
+Calling it again for the same match returns the same match. If the player still has an unfinished game in this room under another id, this returns `null`: finish that game first.
+
+**Usage:**
+```csharp
+// matchId comes from your game server: one GUID per match, the same for every player in it
+RoomData roomData = await FunticoSDK.Instance.JoinExternalMatch(room.Guid, matchId);
+
+if (roomData == null)
+{
+    Debug.LogError("Could not join the match");
+    return;
+}
+
+// Play the match. Your server reports each player's score under roomData.SessionOrMatchId.
+StartMatch(roomData.SessionOrMatchId);
+```
+
+**Important Notes:**
+- `eventId` and `matchId` must both be GUIDs; anything else returns `null` without a request
+- The score is reported by your server with `FinishRoomSession_Server`, not by the client with `FinishRoomSession_Client`
 
 ---
 
@@ -938,20 +999,23 @@ Gets the tier of a specific room/event.
 
 **Signature:**
 ```csharp
-public UniTask<RoomTierEnum?> GetTierByEventId(string eventId)
+public UniTask<RoomTierEnum?> GetTierByEventId(string eventId, RoomType roomType)
 ```
 
 **Parameters:**
 - `eventId` - Event/Room identifier
+- `roomType` - The room's type (`RoomType.singleplayer`, `RoomType.multiplayer` or `RoomType.external`); required
 
 **Returns:** `UniTask<RoomTierEnum?>` - Tier enum or null if not found
 
 **Description:**
 Retrieves the tier classification for a specific room. Useful when you have event ID but need tier information.
 
+The tier is looked up in the last room list the SDK loaded. If no list has been loaded yet, the SDK loads the rooms of `roomType` first. If `GetRooms` already loaded a list, that list is searched as it is, whatever type it was loaded for. To find a room of another type, call `GetRooms(null, thatType)` first.
+
 **Usage:**
 ```csharp
-RoomTierEnum? tier = await FunticoSDK.Instance.GetTierByEventId(eventId);
+RoomTierEnum? tier = await FunticoSDK.Instance.GetTierByEventId(eventId, RoomType.singleplayer);
 
 if (tier.HasValue)
 {
@@ -1039,19 +1103,21 @@ Finishes a game session and submits score from server (server-side).
 public UniTask<bool> FinishRoomSession_Server(
     string eventId, 
     string sessionId, 
-    int score, 
+    int? score, 
     int userId, 
     int funticoId,
-    string userIp)
+    string userIp,
+    long? gameManagedAward = null)
 ```
 
 **Parameters:**
 - `eventId` - Event/Room identifier
-- `sessionId` - Session identifier
-- `score` - Final game score
+- `sessionId` - Session identifier (for an external match, the `matchId` from `JoinExternalMatch`)
+- `score` - Final game score; `null` means the player left
 - `userId` - User identifier in SDK system (same as `UserData.UserId`)
 - `funticoId` - User identifier in Funtico platform (same as `UserData.PlatformId`). Used internally to retrieve session events for the user
 - `userIp` - User IP address (for security/validation)
+- `gameManagedAward` - Optional; leave it `null` (the default) unless your room uses a game-managed award
 
 **Returns:** `UniTask<bool>` - `true` if successfully finished, `false` otherwise
 
@@ -1107,17 +1173,18 @@ public UniTask<bool> FinishRoomSession_Server(
 **Returns:** `UniTask<bool>` - `true` if results successfully submitted, `false` otherwise
 
 **Description:**
-Completes a multiplayer game session from a dedicated server. Submits scores and additional data for all participants in a single request. Game events recorded via `RecordEvent_Server` are automatically attached to each player's results. After submission, the server session is closed automatically.
+Completes a multiplayer game session from a dedicated server. Submits the scores of all participants in a single request. After submission, the server session is closed automatically.
 
 **FinishedUser Properties:**
 | Property | Type | Description |
 |----------|------|-------------|
-| `Score` | `int` | Player's final score |
-| `UserId` | `int` | User identifier in SDK system (same as `UserData.UserId`) |
-| `FunticoUserId` | `int` | User identifier in Funtico platform (same as `UserData.PlatformId`) |
+| `Score` | `int?` | Player's final score; `null` means the player left |
+| `UserId` | `int` | User identifier in SDK system (same as `UserData.UserId`); not sent by this overload |
+| `FunticoUserId` | `int` | User identifier in Funtico platform (same as `UserData.PlatformId`); this is the id the result is recorded under, so always set it |
 | `UserIp` | `string` | User IP address (for validation) |
-| `AdditionalData` | `string` | Optional additional data (JSON string) |
-| `GameEvents` | `List<string>` | Game events (auto-filled from session logs) |
+| `GameManagedAward` | `long?` | Optional; leave it `null` unless your room uses a game-managed award |
+| `AdditionalData` | `string` | Not sent by this overload |
+| `GameEvents` | `List<string>` | Not sent by this overload |
 
 **Usage:**
 ```csharp
@@ -1128,8 +1195,8 @@ public async void OnMatchComplete(List<PlayerResult> results)
     {
         Score = r.Score,
         UserId = r.UserId,
-        UserIp = r.IpAddress,
-        AdditionalData = JsonConvert.SerializeObject(new { kills = r.Kills, deaths = r.Deaths })
+        FunticoUserId = r.FunticoId,
+        UserIp = r.IpAddress
     }).ToList();
 
     bool success = await FunticoSDK.Instance.FinishRoomSession_Server(
@@ -1148,7 +1215,7 @@ public async void OnMatchComplete(List<PlayerResult> results)
 
 **Important Notes:**
 - Only use in server builds (with SERVER or UNITY_SERVER defines)
-- `GameEvents` for each player are automatically filled from events recorded via `RecordEvent_Server` — you don't need to set them manually
+- Per player only `Score`, `FunticoUserId`, `UserIp` and `GameManagedAward` are sent; events recorded with `RecordEvent_Server` are not attached by this overload (the single-player overload attaches them)
 - Automatically closes the server session after submission (fire-and-forget)
 
 ---
@@ -1156,6 +1223,8 @@ public async void OnMatchComplete(List<PlayerResult> results)
 ## Special Tournaments Methods
 
 These methods provide access to the Funtico Special Tournaments system — timed competitive events with prize pools, leaderboards, and community groupings.
+
+One attempt goes: `JoinTournament` → `EnterTournament` → play → `ResultTournament_Client` (or `ResultTournament` on a server) with `TournamentEnterData.TournamentScoreUuid` as the `saveScoreId`. Every further attempt starts with a new `JoinTournament`. The tournament methods take the id as a `Guid`: use `Guid.Parse(tournament.Guid)`.
 
 ### `GetTournaments`
 
@@ -1180,17 +1249,27 @@ public UniTask<List<TournamentViewModel>> GetTournaments(
 Retrieves a paginated list of tournaments. Can be filtered by status to show only ongoing, upcoming, or finished tournaments.
 
 **TournamentViewModel Properties:**
-- `Id` (Guid) - Tournament unique identifier (`[JsonProperty("Plaftorfm_Guid")]`)
+- `Guid` (string) - Tournament unique identifier (JSON field `Plaftorfm_Guid`). The tournament methods take a `Guid`, so pass `Guid.Parse(t.Guid)`
 - `Name` (string) - Tournament display name
-- `GameId` (int?) - Associated game identifier
-- `MapId` (int?) - Associated map identifier
-- `StartsAt` (DateTime?) - Tournament start time
-- `EndsAt` (DateTime?) - Tournament end time
-- `MaxEntries` (int?) - Maximum number of entries allowed
-- `EntriesCount` (int?) - Current number of entries
-- `EntryFee` (int?) - Entry fee amount
-- `EntryFeeType` (EntryFeeType?) - Currency type for entry fee
-- `IsJoined` (bool) - Whether current user has joined
+- `Description` (string) - Tournament description
+- `SpecialTournamentsType` (SpecialTournamentsType) - `Regular`, `Special`, `Finals` or `Semifinals`
+- `EntryFeeType` (EntryFeeType) - Currency type for the entry fee
+- `EntryFee` (double) - Entry fee amount
+- `EntryFeeItemId` (long?), `EntryFeeItemName` (string), `EntryFeeItemImage` (string) - The item charged as the entry fee, when the fee is an item
+- `StartDate` (DateTime) - Tournament start time
+- `EndDate` (DateTime?) - Tournament end time
+- `LeftSeconds` (double) - Seconds left until `EndDate`
+- `PlayerLimit` (int?) - Maximum number of players
+- `EntryLimit` (int) - Entry limit
+- `HavePassword` (bool?) - Whether the tournament needs a password (pass it to `JoinTournament`)
+- `IsKycRequired` (bool) - Whether KYC verification is required
+- `PrizePoolLabel` (string) - Prize pool text for display
+- `GuaranteedPrizePoolUsd` (int) - Guaranteed prize pool in USD
+- `Gpp` (int?), `GppLabel` (string) - GPP amount and its display label
+- `ScoreMode` (string), `ScoreType` (string) - How scores are counted, as configured for the tournament
+- `Settings` (string) - Custom game settings configured for the tournament
+- `PracticeStartTime` / `PracticeEndTime` (DateTime?) - Practice window, when the tournament has one
+- `MinPlayerLevel` / `MaxPlayerLevel` (uint) - Player level range allowed to take part
 
 **Usage:**
 ```csharp
@@ -1201,7 +1280,8 @@ List<TournamentViewModel> ongoing = await FunticoSDK.Instance.GetTournaments(
 
 foreach (var t in ongoing)
 {
-    Debug.Log($"{t.Name} — ends {t.EndsAt}, entries: {t.EntriesCount}/{t.MaxEntries}");
+    Guid tournamentId = Guid.Parse(t.Guid);
+    Debug.Log($"{t.Name} ({tournamentId}) — ends {t.EndDate}, {t.LeftSeconds:F0}s left, fee: {t.EntryFee} {t.EntryFeeType}");
 }
 
 // Paginated fetch of all tournaments
@@ -1225,7 +1305,7 @@ public UniTask<TournamentViewModel> GetTournamentDetailsLight(Guid tournamentId)
 **Returns:** `UniTask<TournamentViewModel>` - Tournament details (or null if not found)
 
 **Description:**
-Retrieves lightweight tournament metadata — name, dates, entry details, and join status. Use this when you need current data for a single tournament without leaderboard player lists.
+Retrieves lightweight tournament metadata (the same `TournamentViewModel` fields as `GetTournaments`): name, dates, entry fee and limits. Use this when you need current data for a single tournament without leaderboard player lists.
 
 **Usage:**
 ```csharp
@@ -1234,8 +1314,8 @@ TournamentViewModel details = await FunticoSDK.Instance.GetTournamentDetailsLigh
 if (details != null)
 {
     Debug.Log($"Tournament: {details.Name}");
-    Debug.Log($"Starts: {details.StartsAt}, Ends: {details.EndsAt}");
-    Debug.Log($"Already joined: {details.IsJoined}");
+    Debug.Log($"Starts: {details.StartDate}, Ends: {details.EndDate}");
+    Debug.Log($"Password: {details.HavePassword == true}, KYC: {details.IsKycRequired}");
 }
 ```
 
@@ -1262,15 +1342,18 @@ Retrieves full leaderboard for a tournament, including a ranked list of all play
 Inherits all `TournamentViewModel` properties, plus:
 - `Players` (List\<TournamentPlayerViewModel\>) - Ranked list of all players
 - `CurrentPlayer` (TournamentPlayerViewModel) - Authenticated user's leaderboard entry
-- `TotalPlayers` (int?) - Total number of participants
+- `TotalPlayers` (int) - Total number of participants
 
 **TournamentPlayerViewModel Properties:**
-- `UserId` (int?) - Player user identifier
-- `UserName` (string) - Player display name
-- `Score` (int?) - Player's current score
-- `Place` (int?) - Player's current rank
-- `user_avatar` (FunticoUserAvatar) - Player avatar data
-- `user_border` (FunticoUserAvatar) - Player border/frame data
+- `FunticoId` (int) - Player identifier in Funtico platform
+- `Name` (string) - Player display name
+- `Place` (int) - Player's current rank
+- `Points` (int) - Player's current score
+- `TimesPlayed` (int) - How many times the player has played in this tournament
+- `BestTime` (double) - Player's best time
+- `user_avatar` (FunticoUserAvatar) - Player avatar data (`name`, `url`, `type`, `description`)
+- `user_border` (FunticoUserAvatar) - Player border/frame data (same fields)
+- `Community` (TournamentCommunityViewModel) - The community the player plays for, if any
 
 **Usage:**
 ```csharp
@@ -1282,11 +1365,11 @@ if (leaderboard != null)
     Debug.Log($"Total players: {leaderboard.TotalPlayers}");
 
     if (leaderboard.CurrentPlayer != null)
-        Debug.Log($"My rank: #{leaderboard.CurrentPlayer.Place}, score: {leaderboard.CurrentPlayer.Score}");
+        Debug.Log($"My rank: #{leaderboard.CurrentPlayer.Place}, score: {leaderboard.CurrentPlayer.Points}");
 
     foreach (var player in leaderboard.Players)
     {
-        Debug.Log($"#{player.Place} {player.UserName} — {player.Score}");
+        Debug.Log($"#{player.Place} {player.Name} — {player.Points} ({player.TimesPlayed} plays)");
     }
 }
 ```
@@ -1308,13 +1391,12 @@ public UniTask<List<TournamentCommunityViewModel>> GetTournamentCommunities(Guid
 **Returns:** `UniTask<List<TournamentCommunityViewModel>>` - List of communities (empty list if none)
 
 **Description:**
-Retrieves community groupings for a tournament. Communities allow players to compete within subgroups. Pass the chosen community's `Uuid` to `JoinTournament` to join within that group.
+Retrieves community groupings for a tournament. Communities allow players to compete within subgroups. Pass the chosen community's `Uuid` to `JoinTournament` (as `Guid.Parse(community.Uuid)`) to join within that group.
 
 **TournamentCommunityViewModel Properties:**
-- `Uuid` (Guid) - Community unique identifier (`[JsonProperty("UUID")]`)
+- `Uuid` (string) - Community unique identifier (JSON field `UUID`)
 - `Name` (string) - Community display name
-- `Description` (string) - Community description
-- `MembersCount` (int?) - Number of current members
+- `IconUri` (string) - Community icon URL
 
 **Usage:**
 ```csharp
@@ -1322,12 +1404,15 @@ var communities = await FunticoSDK.Instance.GetTournamentCommunities(tournamentI
 
 foreach (var community in communities)
 {
-    Debug.Log($"{community.Name} — {community.MembersCount} members");
+    Debug.Log($"{community.Name} ({community.Uuid})");
 }
 
 // Let user pick a community, then pass its Uuid to JoinTournament
-Guid selectedCommunityId = communities[0].Uuid;
-await FunticoSDK.Instance.JoinTournament(tournamentId, selectedCommunityId);
+if (communities.Count > 0)
+{
+    Guid selectedCommunityId = Guid.Parse(communities[0].Uuid);
+    await FunticoSDK.Instance.JoinTournament(tournamentId, selectedCommunityId);
+}
 ```
 
 ---
@@ -1360,16 +1445,19 @@ Registers the authenticated user in a tournament. Call this before every `EnterT
 bool joined = await FunticoSDK.Instance.JoinTournament(tournamentId);
 
 // Join with community
-bool joined = await FunticoSDK.Instance.JoinTournament(tournamentId, communityId: communityGuid);
+bool joinedWithCommunity = await FunticoSDK.Instance.JoinTournament(tournamentId, communityId: communityGuid);
 
 // Join password-protected tournament
-bool joined = await FunticoSDK.Instance.JoinTournament(tournamentId, password: "secret123");
+bool joinedWithPassword = await FunticoSDK.Instance.JoinTournament(tournamentId, password: "secret123");
 
 if (joined)
     Debug.Log("Successfully joined tournament!");
 else
-    Debug.Log("Failed to join — check IErrorHandler for details");
+    Debug.Log("Failed to join — check the SDK log for details");
 ```
+
+**Important Notes:**
+- A join covers one game attempt: call `JoinTournament` again before every `EnterTournament`, including a replay of a tournament the player has already joined
 
 ---
 
@@ -1388,18 +1476,23 @@ public UniTask<TournamentEnterData> EnterTournament(Guid tournamentId)
 **Returns:** `UniTask<TournamentEnterData>` - Session entry data (or null if failed)
 
 **Description:**
-Creates a tournament game entry and returns the `saveScoreId` needed to submit a result. Call this immediately before starting the gameplay. The returned `saveScoreId` must be passed to `ResultTournament` or `ResultTournament_Client` after the game ends.
+Creates a tournament game entry and returns the `saveScoreId` needed to submit a result. Call this immediately before starting the gameplay, after a fresh `JoinTournament` for this attempt. The returned `TournamentScoreUuid` is the `saveScoreId` to pass to `ResultTournament` or `ResultTournament_Client` after the game ends.
 
 **TournamentEnterData Properties:**
-- `LocalTournamentUuid` (string) - Save-score session identifier (`[JsonProperty("LocalTournamentUUID")]`)
+- `TournamentScoreUuid` (string) - The `saveScoreId` for this attempt
+- `LocalTournamentUuid` (Guid) - Local entry identifier (JSON field `LocalTournamentUUID`). Not the `saveScoreId`: a result sent under it is refused
 
 **Usage:**
 ```csharp
+// Every attempt needs its own join first
+bool joined = await FunticoSDK.Instance.JoinTournament(tournamentId);
+if (!joined) return;
+
 TournamentEnterData enterData = await FunticoSDK.Instance.EnterTournament(tournamentId);
 
 if (enterData != null)
 {
-    string saveScoreId = enterData.LocalTournamentUuid;
+    string saveScoreId = enterData.TournamentScoreUuid;
     Debug.Log($"Entered tournament. SaveScore ID: {saveScoreId}");
     StartTournamentGame(saveScoreId);
 }
@@ -1426,7 +1519,7 @@ public UniTask<TournamentResultViewModel> ResultTournament(
 
 **Parameters:**
 - `tournamentId` - Tournament unique identifier
-- `saveScoreId` - Session identifier from `EnterTournament` (`TournamentEnterData.LocalTournamentUuid`)
+- `saveScoreId` - `TournamentEnterData.TournamentScoreUuid` from `EnterTournament` (not `LocalTournamentUuid`)
 - `score` - Final game score (null if score is not applicable)
 - `isSuccess` - Whether the game session was completed successfully
 
@@ -1436,10 +1529,10 @@ public UniTask<TournamentResultViewModel> ResultTournament(
 Submits a plain-text result from a trusted server build. The SDK automatically attaches the authenticated user's `UserId` to the request. Use `ResultTournament_Client` instead for client builds where a dedicated server is not available.
 
 **TournamentResultViewModel Properties:**
-- `Score` (int?) - Recorded score
-- `Time` (float?) - Session duration
-- `XpReceive` (int?) - XP awarded
-- `IcReceive` (int?) - In-game currency awarded
+- `Score` (double) - Recorded score
+- `Time` (double) - Session duration
+- `XpReceive` (uint) - XP awarded
+- `IcReceive` (int) - In-game currency awarded
 
 **Usage:**
 ```csharp
@@ -1478,7 +1571,7 @@ public UniTask<bool> ResultTournament_Client(
 
 **Parameters:**
 - `tournamentId` - Tournament unique identifier
-- `saveScoreId` - Session identifier from `EnterTournament` (`TournamentEnterData.LocalTournamentUuid`)
+- `saveScoreId` - `TournamentEnterData.TournamentScoreUuid` from `EnterTournament`. Do not pass `LocalTournamentUuid`: a result sent under it is refused
 - `score` - Final game score (null if score is not applicable)
 - `isSuccess` - Whether the game session was completed successfully
 - `customData` - Optional JSON string with additional game data
@@ -1486,7 +1579,9 @@ public UniTask<bool> ResultTournament_Client(
 **Returns:** `UniTask<bool>` - `true` if result successfully recorded, `false` otherwise
 
 **Description:**
-Submits an encrypted result from a client build. The payload (`score`, `isSuccess`, `customData`) is AES-encrypted using a key derived from `saveScoreId` and the game's private key, then HMAC-signed before sending. Use this in games without a dedicated server.
+Submits an encrypted result from a client build. The payload (`score`, `isSuccess`, `customData`) is AES-encrypted using a key derived from `saveScoreId` and the game's private key, then HMAC-signed before sending; when the SDK was initialized with a signer, the signer does this instead. Use this in games without a dedicated server.
+
+Whatever the run recorded with `RecordCollected_Client` goes with the result, and the counts are cleared once the result is accepted.
 
 **Usage:**
 ```csharp
@@ -1514,7 +1609,7 @@ else
 **Important Notes:**
 - Only use in client builds (not on dedicated servers)
 - Payload is AES-encrypted + HMAC-signed automatically — do not encrypt `customData` manually
-- `saveScoreId` must come from a matching `EnterTournament` call
+- `saveScoreId` must be the `TournamentScoreUuid` of a matching `EnterTournament` call
 
 ---
 
@@ -1536,25 +1631,30 @@ public UniTask<TournamentPrizesViewModel> GetPrizes(Guid tournamentId)
 Retrieves the prize breakdown for a tournament showing what each place receives.
 
 **TournamentPrizesViewModel Properties:**
-- `Places` (List\<TournamentPrizePlaceViewModel\>) - Prize for each ranking place
+- `Prizes` (List\<TournamentPrizePlaceViewModel\>) - One entry per place range
 
 **TournamentPrizePlaceViewModel Properties:**
-- `Place` (int?) - Ranking position
-- `Prizes` (List\<TournamentPrizeItemViewModel\>) - List of prizes for this place
+- `Uuid` (string) - Prize range identifier
+- `Name` (string) - Prize range display name
+- `Type` (string) - Prize range type
+- `From` / `To` (int) - The first and last place this range covers
+- `Prizes` (List\<TournamentPrizeItemViewModel\>) - Prizes for each place in this range
 
 **TournamentPrizeItemViewModel Properties:**
 - `Name` (string) - Prize display name
-- `Amount` (int?) - Prize amount
 - `ImageUrl` (string) - Prize image URL
+- `Amount` (int) - Prize amount
+- `ValueUsd` (int?) - Prize value in USD (JSON field `Value_usd`)
 
 **Usage:**
 ```csharp
 TournamentPrizesViewModel prizes = await FunticoSDK.Instance.GetPrizes(tournamentId);
 
-foreach (var place in prizes.Places)
+foreach (var range in prizes.Prizes)
 {
-    string prizeText = string.Join(", ", place.Prizes.Select(p => $"{p.Amount} {p.Name}"));
-    Debug.Log($"Place #{place.Place}: {prizeText}");
+    string places = range.From == range.To ? $"#{range.From}" : $"#{range.From}–{range.To}";
+    string prizeText = string.Join(", ", range.Prizes.Select(p => $"{p.Amount} {p.Name}"));
+    Debug.Log($"Place {places}: {prizeText}");
 }
 ```
 
@@ -1588,6 +1688,7 @@ Retrieves the authenticated user's tournament participation history with scores,
 - `CurrentPage` (int?) - Current page number
 - `LastPage` (int?) - Last available page
 - `PerPage` (int?) - Items per page
+- `From` / `To` (int?) - Positions of the first and last entry on this page
 - `Total` (int?) - Total number of entries
 
 **TournamentHistoryEntry Properties:**
@@ -1599,6 +1700,7 @@ Retrieves the authenticated user's tournament participation history with scores,
 - `BestScore` (int?) - User's best score in this tournament
 - `LeaderboardPlace` (int?) - User's final leaderboard position
 - `EntriesCount` / `MaxEntries` (int?) - Participation numbers
+- `GameId` / `MapId` (int?) - Game and map the tournament was played on
 - `Prizes` (List\<TournamentHistoryPrize\>) - Prizes awarded
 
 **TournamentHistoryPrize Properties:**
@@ -4086,8 +4188,12 @@ public class TournamentFlowExample : MonoBehaviour
 
         foreach (var t in tournaments)
         {
-            Debug.Log($"{t.Name} | Entries: {t.EntriesCount}/{t.MaxEntries} | Joined: {t.IsJoined}");
+            Debug.Log($"{t.Name} ({t.Guid}) | Ends: {t.EndDate} | Fee: {t.EntryFee} {t.EntryFeeType}");
         }
+
+        // The tournament methods take a Guid
+        if (tournaments.Count > 0)
+            currentTournamentId = Guid.Parse(tournaments[0].Guid);
     }
 
     // ===== 2. VIEW PRIZES =====
@@ -4095,43 +4201,44 @@ public class TournamentFlowExample : MonoBehaviour
     {
         TournamentPrizesViewModel prizes = await FunticoSDK.Instance.GetPrizes(tournamentId);
 
-        foreach (var place in prizes.Places)
+        foreach (var range in prizes.Prizes)
         {
-            string rewards = string.Join(", ", place.Prizes.ConvertAll(p => $"{p.Amount} {p.Name}"));
-            Debug.Log($"Place #{place.Place}: {rewards}");
+            string rewards = string.Join(", ", range.Prizes.ConvertAll(p => $"{p.Amount} {p.Name}"));
+            Debug.Log($"Places #{range.From}–{range.To}: {rewards}");
         }
     }
 
-    // ===== 3. JOIN TOURNAMENT =====
-    public async UniTask OnJoinButtonClick(Guid tournamentId)
+    // ===== 3. CHOOSE A COMMUNITY (optional) =====
+    private Guid? currentCommunityId;
+
+    public async UniTask OnTournamentSelected(Guid tournamentId)
     {
         currentTournamentId = tournamentId;
 
-        // Optionally choose a community
         var communities = await FunticoSDK.Instance.GetTournamentCommunities(tournamentId);
-        Guid? communityId = communities.Count > 0 ? communities[0].Uuid : (Guid?)null;
+        currentCommunityId = communities.Count > 0 ? Guid.Parse(communities[0].Uuid) : (Guid?)null;
 
-        bool joined = await FunticoSDK.Instance.JoinTournament(tournamentId, communityId);
-
-        if (joined)
-        {
-            Debug.Log("Joined tournament successfully!");
-            ShowPlayButton();
-        }
-        else
-        {
-            Debug.LogError("Failed to join tournament");
-        }
+        ShowPlayButton();
     }
 
-    // ===== 4. ENTER TOURNAMENT (start a game attempt) =====
+    // ===== 4. JOIN + ENTER (every attempt) =====
     public async UniTask OnPlayButtonClick()
     {
+        // A join covers one attempt, so join again before every EnterTournament
+        bool joined = await FunticoSDK.Instance.JoinTournament(currentTournamentId, currentCommunityId);
+
+        if (!joined)
+        {
+            Debug.LogError("Failed to join tournament");
+            return;
+        }
+
         TournamentEnterData enterData = await FunticoSDK.Instance.EnterTournament(currentTournamentId);
 
         if (enterData != null)
         {
-            currentSaveScoreId = enterData.LocalTournamentUuid;
+            // The saveScoreId is TournamentScoreUuid, not LocalTournamentUuid
+            currentSaveScoreId = enterData.TournamentScoreUuid;
             Debug.Log($"Entered! SaveScore ID: {currentSaveScoreId}");
             StartGameplay();
         }
@@ -4192,10 +4299,10 @@ public class TournamentFlowExample : MonoBehaviour
         Debug.Log($"Total players: {leaderboard.TotalPlayers}");
 
         if (leaderboard.CurrentPlayer != null)
-            Debug.Log($"My rank: #{leaderboard.CurrentPlayer.Place}, score: {leaderboard.CurrentPlayer.Score}");
+            Debug.Log($"My rank: #{leaderboard.CurrentPlayer.Place}, score: {leaderboard.CurrentPlayer.Points}");
 
         foreach (var player in leaderboard.Players)
-            Debug.Log($"#{player.Place} {player.UserName} — {player.Score}");
+            Debug.Log($"#{player.Place} {player.Name} — {player.Points}");
     }
 
     // ===== 8. VIEW HISTORY =====

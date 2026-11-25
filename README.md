@@ -176,4 +176,4 @@ If you encounter issues:
 
 ---
 
-**SDK Version**: 1.0.0
+**SDK Version**: 1.1.0
