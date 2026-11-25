@@ -3661,7 +3661,7 @@ public CommunityGoalErrorResponse GetLastCommunityGoalError()
 `GetCommunityGoal` returns the chain's open goal, or its latest goal while the next one is not open yet. `GetCommunityGoalById` returns any goal of the game, open or past (e.g. the one an attempt belongs to).
 
 **CommunityGoalResponse Properties:**
-- `Chain` - `Key`, `Name`, `Scoring` (`CommunityGoalScorings`: `"Sum"` of all contributions, the single `"Best"`, or `"BestPerDay"`: the best of each UTC day, summed), `FreeAttemptsPerDay` (0 = no limit), `MinAttemptSeconds` (shortest accepted attempt), `AttemptTtlSeconds` (time to complete an attempt), `Milestones` (progress fractions between 0 and 1, ascending), `PaidAttempts` (`CommunityGoalPaidAttempts`: `Product`, `Tier`, `DisplayPrice` (the price in PLAYR as a decimal string, to show before buying; null when it is not on sale) and `PerDay` (0 = no limit); null when the chain sells no paid attempts)
+- `Chain` - `Key`, `Name`, `Scoring` (`CommunityGoalScorings`: `"Sum"` of all contributions, the single `"Best"`, or `"BestPerDay"`: the best of each UTC day, summed), `FreeAttemptsPerDay` (0 = no limit), `MinAttemptSeconds` (shortest accepted attempt), `AttemptTtlSeconds` (time to complete an attempt), `Milestones` (progress fractions between 0 and 1, ascending), `PaidAttempts` (`CommunityGoalPaidAttempts`: `Product`, `Tier`, `DisplayPrice` (the price in PLAYR as a decimal string, to show before buying; null when it is not on sale) and `PerDay` (0 = no limit) and `Rewards` (List\<CommunityGoalPaidReward\>: what a completed paid attempt pays on top of its contribution, `OnPaidOfDay` (the n-th paid attempt of the day it applies to; null = every one), `Code`, `ChancePct`; show for example "the 3rd paid strike today brings `chest_epic`"); null when the chain sells no paid attempts)
 - `Goal` - The goal; null when the chain has never had one
 - `AwaitingNext` (bool) - The chain has no open goal right now: the last one closed and the next is not open yet
 - `Me` - The player's own state; null when no player is signed in
@@ -3722,7 +3722,7 @@ void OnBossScreenClosed() => _watch?.Stop();
 Starts an attempt on an open goal and spends one of today's free attempts, or buys a paid one.
 
 **StartGoalAttemptResponse Properties:**
-- `Attempt` (GoalAttemptDto) - `AttemptId`, `GoalId`, `Seed` (int, chosen by the server), `StartedAt`, `ExpiresAt` (UTC), `GoalValueAtStart`, `MilestonesAtStart` (the goal's value and passed milestones when the attempt started: the phase to play in) `StartData` (what you passed as `startData`, unchanged; null if none) and `Paid` (bool, `true` for a paid attempt). All of them are the same every time the attempt is resumed
+- `Attempt` (GoalAttemptDto) - `AttemptId`, `GoalId`, `Seed` (int, chosen by the server), `StartedAt`, `ExpiresAt` (UTC), `GoalValueAtStart`, `MilestonesAtStart` (the goal's value and passed milestones when the attempt started: the phase to play in) `StartData` (what you passed as `startData`, unchanged; null if none), `Paid` (bool, `true` for a paid attempt) and `PaidOfDay` (int?, a paid attempt: which paid attempt of the player's day it is, 1-based; null for a free one). All of them are the same every time the attempt is resumed
 - `Resumed` (bool) - `true` when this is the player's already-live attempt returned again; nothing was spent
 - `Goal` (CommunityGoalDto) - The goal of the attempt with its `PayloadJson` and its current state. On a resumed attempt the goal may have passed more milestones since the start: play in the phase of `Attempt.MilestonesAtStart`
 - `AttemptsLeftToday` (int?) / `PaidAttemptsLeftToday` (int?) / `ResetsAt` (DateTime)
@@ -3774,6 +3774,7 @@ Completes an attempt with its contribution.
 - `Score` (long), `ScoreImproved` (bool), `Place` (int?)
 - `Best` (long) - The player's best strike on this goal, this one included; `IsNewBest` (bool) - this contribution beat every earlier one of the player on this goal (the same on a replay), e.g. for a "NEW BEST" banner
 - `AttemptsLeftToday` (int?), `PaidAttemptsLeftToday` (int?), `ResetsAt` (DateTime)
+- `Rewards` (List\<RecentReward\>) - What a completed paid attempt paid on top of its contribution (such as a chest), each with its delivery status; empty for a free attempt; the same on a repeated completion. A chest arrives as a platform box, so show it by `Key` (its `Items` stay empty). A paid attempt that expires unfinished pays none of them
 - `Replayed` (bool) - `true` when this answers a repeat of an already completed attempt
 
 **Description:**

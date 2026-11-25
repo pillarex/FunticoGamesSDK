@@ -66,6 +66,22 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>Paid attempts per player per UTC day across the whole chain; 0 means no limit.</summary>
         public int PerDay { get; set; }
+
+        /// <summary>What a completed paid attempt pays on top of its contribution (for example a chest on the third of the day).</summary>
+        public List<CommunityGoalPaidReward> Rewards { get; set; } = new List<CommunityGoalPaidReward>();
+    }
+
+    /// <summary>One reward of a chain's paid attempts.</summary>
+    public class CommunityGoalPaidReward
+    {
+        /// <summary>Only the player's n-th paid attempt of the UTC day (1 = the first); null = every paid attempt.</summary>
+        public int? OnPaidOfDay { get; set; }
+
+        /// <summary>What it is, as the chain's rules name it (e.g. "chest_epic"); the reward's Key once paid.</summary>
+        public string Code { get; set; }
+
+        /// <summary>Chance in percent that it pays; 100 = always.</summary>
+        public double ChancePct { get; set; }
     }
 
     /// <summary>The payment of one paid attempt.</summary>
@@ -263,6 +279,9 @@ namespace FunticoGamesSDK.APIModels
 
         /// <summary>True for a paid attempt.</summary>
         public bool Paid { get; set; }
+
+        /// <summary>A paid attempt: the player's n-th paid attempt of its UTC day in the chain (1-based); null for a free one.</summary>
+        public int? PaidOfDay { get; set; }
     }
 
     /// <summary>Body of StartGoalAttempt when the game sends startData or buys a paid attempt. Built by the SDK.</summary>
@@ -388,6 +407,12 @@ namespace FunticoGamesSDK.APIModels
         public int? PaidAttemptsLeftToday { get; set; }
 
         public DateTime ResetsAt { get; set; }
+
+        /// <summary>
+        /// A completed paid attempt: what it paid on top of its contribution (the chain's PaidAttempts.Rewards), each with its
+        /// delivery status; empty for a free attempt or when it earned none. The same on a repeated completion.
+        /// </summary>
+        public List<RecentReward> Rewards { get; set; } = new List<RecentReward>();
     }
 
     /// <summary>Response of GetCommunityGoalLeaderboard: contributors ranked by score.</summary>
